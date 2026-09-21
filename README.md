@@ -62,7 +62,7 @@ mkdir -p ~/.agents/skills
 ln -s ~/.claude/skills/ecommerce-process-mining ~/.agents/skills/ecommerce-process-mining
 ```
 
-Update the skill with `git pull` in its directory. The current release is **0.1.1**. See
+Update the skill with `git pull` in its directory. The current release is **0.1.2**. See
 [CHANGELOG.md](CHANGELOG.md). The [skills index](https://github.com/timerise-ai/skills) lists the other
 Timerise Skills and how to install them all at once.
 
@@ -156,6 +156,7 @@ and the Firestore notes are not executed anywhere, and `references/testing.md` s
 |---|---|
 | Customer behaviour on the storefront | Product analytics. This module captures staff at work, not shoppers |
 | "Who opened this link" | Server-side visit logging; the `visit-logger` skill |
+| Data out of, or actions into, a service with no API | The sibling [`browser-extension-connector`](https://github.com/timerise-ai/browser-extension-connector) skill, which replays the page's own session; this one only observes what the employee does |
 | Process mining over ERP or OMS event logs | A data-warehouse job over case id, activity and timestamp. No capture is needed |
 | Productivity scoring, leaderboards, who has not opted in | Nothing here. The database withholds the rows, and `references/consent-and-privacy.md` says why |
 | Session replay or screen recording | A replay vendor. This reads the DOM and stores structure, not video |

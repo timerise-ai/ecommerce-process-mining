@@ -48,6 +48,7 @@ nothing else. **No part of the capture path has met a production browser**, so p
 |---|---|
 | Customer behaviour on the storefront | product analytics; this captures staff, not shoppers |
 | "Who opened this link" | server-side visit logging; the `visit-logger` skill |
+| Data out of, or actions into, a site with no API | the [`browser-extension-connector`](https://github.com/timerise-ai/browser-extension-connector) skill; it acts in the session, this one only observes |
 | Process mining over ERP or OMS event logs (case id, activity, timestamp) | a data-warehouse job; no capture is needed |
 | Productivity scoring or surveillance | nothing here. Consent is per person and revocable, and managers see aggregates |
 | Desktop applications | a browser extension sees browser tabs only; the gap-capture form covers the rest |
