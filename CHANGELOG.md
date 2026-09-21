@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.2] - 2026-09-21
+
+Wording release. The skill content is unchanged from 0.1.1.
+
+### Changed
+
+- The `Not this` table in `README.md` and the `When NOT to use` table in
+  `SKILL.md` name the sibling
+  [`browser-extension-connector`](https://github.com/timerise-ai/browser-extension-connector)
+  skill, so a request to pull data out of a service with no API lands there
+  rather than here. That extension acts inside the user's session; this one
+  only observes what the employee does.
+
 ## [0.1.1] - 2026-09-21
 
 Wording release. The skill content is unchanged from 0.1.0.
