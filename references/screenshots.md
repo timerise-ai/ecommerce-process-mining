@@ -1,21 +1,19 @@
-# Event-triggered screenshots **[A]** logic, **[D]** model — not run in a browser
+# Event-triggered screenshots: **[A]** logic, **[D]** model, not run in a browser
 
-A screenshot is attached to a *significant event*, not taken on a timer. The aim is to
-give the AI pixels for the minority of events whose DOM read is unreliable, at a few
-percent of the cost of recording.
+A screenshot is attached to a *significant event*, not taken on a timer. The aim is to give the AI pixels for
+the minority of events whose DOM read is unreliable, at a few percent of the cost of recording.
 
 **Decide the mode before anything else.**
 
 | Mode | Uploads | Use when |
 |---|---|---|
 | `event_triggered` | PNG/WebP + bounding box | internal tools showing no third-party personal data |
-| `metadata_only` | bounding box, viewport, hashes — **no image** | buyer data on screen — **the e-commerce default [A]** |
+| `metadata_only` | bounding box, viewport, hashes, and **no image** | buyer data on screen; **the e-commerce default [A]** |
 | `disabled` | nothing | legal review says so |
 
-**The scrubber never sees pixels.** A screenshot of an order page contains the buyer's
-name and address in a form no regex touches, and stage 1 sends the crop to a
-third-party vision model. `metadata_only` trades accuracy on low-confidence fields for
-the guarantee that no image leaves the browser. **[D]**
+**The scrubber never sees pixels.** A screenshot of an order page contains the buyer's name and address in a
+form no regex touches, and stage 1 sends the crop to a third-party vision model. `metadata_only` trades
+accuracy on low-confidence fields for the guarantee that no image leaves the browser. **[D]**
 
 ## What earns a screenshot **[D]**
 
@@ -23,24 +21,23 @@ the guarantee that no image leaves the browser. **[D]**
 |---|---|
 | Click on a button, link or submit | always (throttled) |
 | Field commit (`change` / blur) | once per field per session |
-| Response status ≥ 400 | always — error states are the spine of exception handling |
+| Response status of 400 or more | always: error states are the spine of exception handling |
 | Route change | always (throttled) |
 | Mutation burst (modal, inline expansion) | once per burst, debounced |
 | Enter/Tab inside a form | once per form per minute |
 | Typing | **never** |
 
-Throttle: one capture per 600 ms per tab — inside Chrome's ~2/s cap. A throttled event
-points at the previous screenshot and records how stale it is
-(`screenshot_offset_ms`), so the model is never led to believe an old image shows this
-step.
+Throttle: one capture per 600 ms per tab, inside Chrome's cap of roughly two a second. A throttled event
+points at the previous screenshot and records how stale it is (`screenshot_offset_ms`), so the model is never
+led to believe an old image shows this step.
 
-Every privacy gate runs first. Paused, no consent, host not allowed, host excluded →
-no capture, and no reuse of an earlier one either.
+Every privacy gate runs first. Paused, no consent, host not allowed or host excluded all mean no capture, and
+no reuse of an earlier one either.
 
 ## The module
 
 ```ts
-// file: screenshot.ts
+// file: lib/process-mining/screenshot.ts
 // Event-triggered screenshots: which events earn one, how often, and when a new
 // capture is a duplicate of the last upload. Pixel access and the capture call
 // itself stay in the service worker; this file only decides.
@@ -141,7 +138,7 @@ export interface ShotFingerprint {
 
 /**
  * A whole-viewport 8x8 hash cannot see one text field change on a 1440x900
- * page — every cell averages ~20,000 pixels. Deduplicating on it alone reuses
+ * page: every cell averages some 20,000 pixels. Deduplicating on it alone reuses
  * the OLD screenshot for exactly the events that need the new pixels: the
  * low-confidence ones, where the model reads the value off the image.
  * So: the crop must match too, and low-confidence events are never deduplicated.
@@ -177,28 +174,27 @@ export function cropRectInBitmap(box: BoundingBox, viewport: Viewport, pad = 8):
 
 ## The dedup trap **[A]**
 
-The source deduplicated on one 8×8 average hash of the whole viewport, skipping the
-upload within 5 bits **[D]**. On a 1440×900 page each of the 64 cells averages about
-20,000 pixels; a text field filling in moves no bit. The test in
-[testing.md](testing.md) shows it: viewport distance stays ≤ 5 while the field's
-content changes completely.
+The earlier design deduplicated on one 8 by 8 average hash of the whole viewport, skipping the upload within 5
+bits **[D]**. On a 1440 by 900 page each of the 64 cells averages about 20,000 pixels; a text field filling in
+moves no bit. The test in [testing.md](testing.md) shows it: the viewport distance stays at 5 or below while
+the field's content changes completely.
 
-The events that *need* fresh pixels are the low-confidence ones, where the model reads
-the value off the image. Viewport-only dedup hands them a screenshot taken before the
-value existed — and the SOP confidently records the wrong thing.
+The events that *need* fresh pixels are the low-confidence ones, where the model reads the value off the
+image. Viewport-only dedup hands them a screenshot taken before the value existed, and the SOP confidently
+records the wrong thing.
 
-Shipped: fingerprint = viewport hash **and** a hash of the active element's rectangle;
-both must match; low-confidence events are never deduplicated. Expect a lower dedup
-ratio than the source's 50–70% estimate. That estimate was unmeasured too.
+Shipped: fingerprint = viewport hash **and** a hash of the active element's rectangle; both must match;
+low-confidence events are never deduplicated. Expect a lower dedup ratio than the earlier estimate of 50 to 70
+per cent. That estimate was unmeasured too.
 
 ## Coordinates
 
-`getBoundingClientRect()` is CSS pixels relative to the viewport; the bitmap is device
-pixels. `cropRectInBitmap` multiplies by `device_pixel_ratio`, pads, and clamps. Read
-the rect **at capture time** — after a scroll it is a different rectangle.
+`getBoundingClientRect()` is CSS pixels relative to the viewport; the bitmap is device pixels.
+`cropRectInBitmap` multiplies by `device_pixel_ratio`, pads, and clamps. Read the rectangle **at capture
+time**: after a scroll it is a different rectangle.
 
-`captureVisibleTab` sees the visible viewport only. A field scrolled out of view has a
-bounding box outside the image; clamp, and treat a degenerate crop as "no crop".
+`captureVisibleTab` sees the visible viewport only. A field scrolled out of view has a bounding box outside
+the image; clamp, and treat a degenerate crop as "no crop".
 
 ## Storage seam
 
@@ -207,10 +203,10 @@ bounding box outside the image; clamp, and treat a degenerate crop as "no crop".
 | Key: `process-mining/<scope>/<user>/<yyyy-mm-dd>/<session>_<step>.webp` | deletable per person, per day, per tenant |
 | Store the **key** in the event, never a URL | URLs expire; keys delete |
 | Private bucket; short-lived signed URLs at render time | |
-| Upload extension → storage directly, via a signed upload URL issued by a key-authenticated route | route handlers should not proxy image bytes |
+| Upload from the extension straight to storage, through a signed upload URL issued by a key-authenticated route | route handlers should not proxy image bytes |
 | Upload is **drop-on-fail**, not retry-forever | the event still stands; a missing image degrades that step to low confidence |
 | Delete images when their events are deleted, and on consent revoke if policy says so | orphans are billed forever and outlive the consent they were taken under |
-| Re-encode to WebP q≈85 before upload | 3–5× smaller; no loss that matters for reading a field **[D]**, unmeasured |
+| Re-encode to WebP at quality 85 before upload | 3 to 5 times smaller, with no loss that matters for reading a field **[D]**, unmeasured |
 
 ## Checklist
 

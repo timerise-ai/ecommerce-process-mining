@@ -9,21 +9,21 @@ What is verified, what is not, and the suites to port.
 | All TypeScript modules | `tsc --strict`, again with `--noUncheckedIndexedAccess`, against zod 3.25 **and** zod 4.4 | clean |
 | Behaviour | vitest 4, 76 cases in 9 files; DOM cases under happy-dom | pass |
 | Schema + RLS | executed on PostgreSQL 18, 24 assertions, run as a non-owner API role and as the table owner | pass |
-| `chrome.*` wiring snippets | **not compiled** — no Chrome typings were available | unverified |
+| `chrome.*` wiring snippets | **not compiled**, because no Chrome typings were available | unverified |
 | `manifest.json` | **not loaded** into a browser | unverified |
 | Supabase seam functions, Firestore notes | **not executed** | unverified |
-| Capture on real sites, store review, accuracy and volume figures | **never measured**, here or in the source | unknown |
+| Capture on real sites, store review, accuracy and volume figures | **never measured**, here or in the earlier implementation | unknown |
 
-The other suites sit beside their modules: privacy in
-[pii-scrubber.md](pii-scrubber.md), ingest in [ingest.md](ingest.md), connect flow in
-[extension-auth.md](extension-auth.md), ranking in
+The other suites sit beside their modules: privacy in [pii-scrubber.md](pii-scrubber.md), ingest in
+[ingest.md](ingest.md), connect flow in [extension-auth.md](extension-auth.md), ranking in
 [console-surfaces.md](console-surfaces.md).
 
 ## Running
 
 ```bash
-npx vitest run                                  # happy-dom needed for label.test.ts
-createdb pm_verify && psql -d pm_verify -v ON_ERROR_STOP=1 -f schema.sql -f verify.sql
+npx vitest run                    # happy-dom is needed for label.test.ts
+createdb pm_verify && psql -d pm_verify -v ON_ERROR_STOP=1 \
+  -f db/process-mining/schema.sql -f db/process-mining/verify.sql
 ```
 
 Run `verify.sql` against a **disposable** database. It creates a role and fixtures.
@@ -31,7 +31,7 @@ Run `verify.sql` against a **disposable** database. It creates a role and fixtur
 ## Extension control logic
 
 ```ts
-// file: capture-control.test.ts
+// file: lib/process-mining/capture-control.test.ts
 import { describe, expect, it } from 'vitest';
 import {
   CaptureBudget, badgeText, classifyIngestResponse, enforceQueueBounds, isCapturing, nextBackoffMs, nextStep,
@@ -146,7 +146,7 @@ describe('session rotation', () => {
 ## Label resolution and value gating
 
 ```ts
-// file: label.test.ts
+// file: lib/process-mining/label.test.ts
 // @vitest-environment happy-dom
 import { describe, expect, it } from 'vitest';
 import { cssPath, looksGenerated, mayReadValue, resolveLabel } from './label';
@@ -197,7 +197,7 @@ describe('selectors and value gating', () => {
 ## Screenshots
 
 ```ts
-// file: screenshot.test.ts
+// file: lib/process-mining/screenshot.test.ts
 import { describe, expect, it } from 'vitest';
 import { averageHash, cropRectInBitmap, decideCapture, hammingHex, isDuplicateShot, toGray8x8, triggerWantsScreenshot } from './screenshot';
 
@@ -268,11 +268,13 @@ describe('perceptual hash', () => {
 
 Two things this file taught, both now encoded in it:
 
-- For an API role, RLS with no matching policy makes `DELETE`/`UPDATE` a **silent no-op**, not an error. Assert "the rows are still there", not "the statement failed".
-- The same statements run by the table **owner** bypass RLS entirely. Only the immutability trigger stops those — so that is asserted as the owner.
+- For an API role, RLS with no matching policy makes `DELETE`/`UPDATE` a **silent no-op**, not an error.
+  Assert "the rows are still there", not "the statement failed".
+- The same statements run by the table **owner** bypass RLS entirely. Only the immutability trigger stops
+  those, so that case is asserted as the owner.
 
 ```sql
--- file: verify.sql
+-- file: db/process-mining/verify.sql
 \set ON_ERROR_STOP on
 create role app_user nologin;
 grant usage on schema public to app_user;
@@ -295,7 +297,7 @@ create or replace function expect_rows(sql text, want bigint, label text) return
 declare got bigint;
 begin
   execute format('select count(*) from (%s) q', sql) into got;
-  if got <> want then raise exception 'FAIL: % — got %, want %', label, got, want; end if;
+  if got <> want then raise exception 'FAIL: %, got %, want %', label, got, want; end if;
   raise notice 'PASS: % (% rows)', label, got;
 end $$;
 
@@ -373,5 +375,7 @@ select expect_rows($$select 1 from pm_events$$, 1, 'retried batch does not doubl
 ## What to add in the host
 
 - An end-to-end run of the connect flow against a real sideloaded build.
-- A fixture page per target app (saved HTML of the order, return and listing screens) driven through `resolveLabel`, asserting the confidence mix. That number is your real accuracy baseline.
-- A scrubber corpus from your own data: 200 real order numbers, SKUs, barcodes and tracking numbers — assert **none** are masked.
+- A fixture page per target app (saved HTML of the order, return and listing screens) driven through
+  `resolveLabel`, asserting the confidence mix. That number is your real accuracy baseline.
+- A scrubber corpus from your own data: 200 real order numbers, SKUs, barcodes and tracking numbers, asserting
+  that **none** are masked.

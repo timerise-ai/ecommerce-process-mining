@@ -1,13 +1,12 @@
-# Ingest **[A]** (contract from the source design **[D]**; the route was never built there)
+# Ingest **[A]** (contract from the earlier design **[D]**, and the route was never built there)
 
-One endpoint. The extension posts batches; the server decides, event by event, what is
-allowed to exist.
+One endpoint. The extension posts batches; the server decides, event by event, what is allowed to exist.
 
 ## Contract
 
-`POST /api/v1/process-mining/ingest` · `Authorization: Bearer <api key with process_mining:emit>`
+`POST /api/v1/process-mining/ingest`, with `Authorization: Bearer <api key with process_mining:emit>`.
 
-Body: `{ "events": ActionEvent[] }` — 1 to 200 events, at most 256 KB.
+Body: `{ "events": ActionEvent[] }`, 1 to 200 events, at most 256 KB.
 
 | Status | Body | The extension must |
 |---|---|---|
@@ -18,21 +17,21 @@ Body: `{ "events": ActionEvent[] }` — 1 to 200 events, at most 256 KB.
 | `403` | `consent_required` | **purge the queue and stop capturing** |
 | `403` | `missing_scope` | treat as `401` |
 | `413` | `batch_too_large` | dead-letter; split smaller next time |
-| `5xx` / network | — | back off 1 s, 4 s, 16 s, 64 s, 256 s, then dead-letter |
+| `5xx` or a network error | none | back off 1 s, 4 s, 16 s, 64 s, 256 s, then dead-letter |
 
-`dropped` counts events that are final and gone: `invalid`, `stale`, `excluded`,
-`credential_url`. They are not errors and are never retried.
+`dropped` counts events that are final and gone: `invalid`, `stale`, `excluded`, `credential_url`. They are
+not errors and are never retried.
 
 ## Pipeline
 
 ```
-authenticate key → scope check → size cap → parse
-  → consent (re-read, this tenant) ── none/revoked ──▶ 403
-  → per event:  schema → age window → exclusions → scrub → idempotent write
+authenticate key -> scope check -> size cap -> parse
+  -> consent (re-read, for this tenant) -- none or revoked --> 403
+  -> per event: schema -> age window -> exclusions -> scrub -> idempotent write
 ```
 
 ```ts
-// file: ingest.ts
+// file: lib/process-mining/ingest.ts
 // Ingest pipeline: validate -> consent -> exclusions -> scrub -> emit.
 // Everything the route handler needs from the host arrives through IngestDeps,
 // so this file has no framework, no SDK and no I/O of its own.
@@ -98,7 +97,7 @@ export const EVENT_TYPE: Record<CaptureAction, string> = {
 
 export interface EmitInput {
   type: string;
-  /** `${session_id}:${step_index}` — a retried batch must not double-insert. */
+  /** `${session_id}:${step_index}`, so a retried batch cannot double-insert. */
   idempotencyKey: string;
   userId: string;
   scopeId: string;
@@ -202,7 +201,7 @@ export async function processIngestBatch(
 ## Route handler
 
 ```ts
-// file: ingest-route.ts
+// file: lib/process-mining/ingest-route.ts
 // Framework-neutral handler: Request in, Response out. In Next.js App Router,
 // `export const POST = (req: Request) => handleIngest(req, host)`.
 
@@ -249,23 +248,21 @@ export async function handleIngest(req: Request, host: IngestHost): Promise<Resp
 
 ## Why it is shaped this way
 
-**Consent is read per batch, uncached.** A cached "yes" keeps accepting events after a
-revoke for as long as the cache lives. One indexed primary-key read per batch is the
-price. **[D]**
+**Consent is read per batch, uncached.** A cached "yes" keeps accepting events after a revoke for as long as
+the cache lives. One indexed primary-key read per batch is the price. **[D]**
 
-**The tenant comes from the key row.** Not from the body, not from a header, not from
-the user's "primary" tenant. A person in two tenants has two keys and two consents.
+**The tenant comes from the key row.** Not from the body, not from a header, not from the user's "primary"
+tenant. A person in two tenants has two keys and two consents. **[A]**
+
+**Validation is per event.** One malformed row from a buggy content script must not discard the other 199.
 **[A]**
 
-**Validation is per event.** One malformed row from a buggy content script must not
-discard the other 199. **[A]**
-
-**`emit` returns `false` on failure, and the route says so.** The source's event helper
-swallowed write errors by design — correct for audit bookkeeping, fatal here: a `200`
-makes the extension delete its only copy. Wrap the host's emitter so failure is
-visible. **[A]**
+**`emit` returns `false` on failure, and the route says so.** The earlier event helper swallowed write errors
+by design, which is correct for audit bookkeeping and fatal here: a `200` makes the extension delete its only
+copy. Wrap the host's emitter so failure is visible. **[A]**
 
 ```ts
+// file: lib/process-mining/ingest-route.ts (the emit seam)
 // Host seam. `hostEmit` is whatever writes to the host's event log.
 emit: async (e) => {
   try {
@@ -276,15 +273,14 @@ emit: async (e) => {
 },
 ```
 
-**Idempotency key is `session_id:step_index`.** A batch that timed out after the write
-is retried; without a key every step lands twice and the branch miner finds loops that
-never happened. **[A]**
+**Idempotency key is `session_id:step_index`.** A batch that timed out after the write is retried; without a
+key every step lands twice and the branch miner finds loops that never happened. **[A]**
 
-**Age window: 7 days back, 5 minutes forward.** Matches the extension's queue bound.
-Anything older was captured under a consent state nobody can vouch for. **[A]**
+**Age window: 7 days back, 5 minutes forward.** Matches the extension's queue bound. Anything older was
+captured under a consent state nobody can vouch for. **[A]**
 
-**Exclusions check three hosts** — the tab, the iframe origin, the API endpoint. A bank
-widget embedded in an allowed page is still the bank. **[A]**
+**Exclusions check three hosts:** the tab, the iframe origin and the API endpoint. A bank widget embedded in
+an allowed page is still the bank. **[A]**
 
 ## Event types **[D]**
 
@@ -296,41 +292,40 @@ widget embedded in an allowed page is still the bank. **[A]**
 | `screenshot` | `process_mining.screenshot.captured` |
 | `heartbeat` | `process_mining.capture.rate_limited` |
 
-Consent changes are **not** process-mining events. They belong to the authorization
-audit trail: `consent_granted`, `consent_revoked`, `exclusions_updated`.
+Consent changes are **not** process-mining events. They belong to the authorization audit trail:
+`consent_granted`, `consent_revoked`, `exclusions_updated`.
 
-Stored attributes: actor = the API key, visibility = the tenant only. Captured
-behaviour never crosses tenants, even inside one corporate group — aggregating one
-person's work across two employers is a line this design does not cross. **[D]**
+Stored attributes: actor = the API key, visibility = the tenant only. Captured behaviour never crosses
+tenants, even inside one corporate group. Aggregating one person's work across two employers is a line this
+design does not cross. **[D]**
 
 ## Retention **[D]**
 
 | Tier | Holds | For |
 |---|---|---|
-| Operational DB | raw events | ~1 day — volume is high, and nothing reads them here |
+| Operational DB | raw events | about a day: volume is high, and nothing reads them here |
 | Warehouse | everything, append-only | the AI stages read from here |
 | Object storage | screenshots | as long as the events that reference them |
 
-The prune job deletes only rows at or behind the warehouse export cursor. A prune that
-runs ahead of a stalled export is unrecoverable data loss.
+The prune job deletes only rows at or behind the warehouse export cursor. A prune that runs ahead of a stalled
+export is unrecoverable data loss.
 
 ## Operating it **[A]**
 
 | Signal | Healthy | Means trouble when |
 |---|---|---|
-| `redactions` per batch | non-zero most of the day | flat zero → scrubber not running, or labels not matching the UI language |
-| `dropped.excluded` | rare | high → extensions running a stale list; check the refresh |
-| `dropped.credential_url` | a few per login | zero across an SSO shop → the detector is not matching |
-| `207` rate | ~0 | sustained → event store is failing writes |
-| heartbeat `dropped_count` | occasional | constant on one host → raise that host's budget, or stop capturing it |
+| `redactions` per batch | non-zero most of the day | a flat zero means the scrubber is not running, or the labels do not match the UI language |
+| `dropped.excluded` | rare | a high value means extensions are running a stale list; check the refresh |
+| `dropped.credential_url` | a few per login | zero across an SSO shop means the detector is not matching |
+| `207` rate | near zero | sustained means the event store is failing writes |
+| heartbeat `dropped_count` | occasional | constant on one host means raising that host's budget, or not capturing it |
 
-Log counts, never payloads. An ingest log line containing an event body is a second,
-unscrubbed copy.
+Log counts, never payloads. An ingest log line containing an event body is a second, unscrubbed copy.
 
 ## Tests
 
 ```ts
-// file: ingest.test.ts
+// file: lib/process-mining/ingest.test.ts
 import { describe, expect, it } from 'vitest';
 import { processIngestBatch, type EmitInput, type IngestDeps } from './ingest';
 import type { ConsentRecord } from './types';
@@ -415,7 +410,7 @@ describe('processIngestBatch', () => {
 ```
 
 ```ts
-// file: ingest-route.test.ts
+// file: lib/process-mining/ingest-route.test.ts
 import { describe, expect, it } from 'vitest';
 import { handleIngest, type IngestHost } from './ingest-route';
 
@@ -447,7 +442,7 @@ describe('handleIngest', () => {
 
 ## Checklist
 
-- [ ] Tenant taken from the key row
+- [ ] Tenant read from the key row
 - [ ] Consent uncached
 - [ ] `emit` wrapper returns `false` on failure, never throws
 - [ ] Unique idempotency key in the event store

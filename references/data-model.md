@@ -1,12 +1,11 @@
 # Data model
 
-Neutral TypeScript shapes first, then Postgres with row-level security, then what
-changes on a document store.
+Neutral TypeScript shapes first, then Postgres with row-level security, then what changes on a document store.
 
-## Neutral types **[A]** (shapes follow the source's tables **[P]** and event contract **[D]**)
+## Neutral types **[A]** (shapes follow the earlier tables **[P]** and event contract **[D]**)
 
 ```ts
-// file: types.ts
+// file: lib/process-mining/types.ts
 // SDK-free shapes. ISO 8601 strings at every boundary; null, never undefined.
 
 export type Iso = string;
@@ -102,18 +101,23 @@ export interface RoutineEntry {
 
 Why these shapes:
 
-- **`ActionEvent` is both the wire format and the stored payload.** One schema to version. `schema_version` exists so events queued by an old extension are migrated or dropped, never misread.
-- **Everything but identity and time is optional.** The AI stages tolerate sparse rows; a network event has no `element`, a heartbeat has almost nothing.
-- **No request or response bodies.** The source design allowed request payloads **[D]**; this skill leaves them out **[A]**. In a shop, a request body *is* a customer record, and nothing downstream needs it — status code and endpoint carry the exception-handling signal.
-- **`screenshot_offset_ms`** makes a reused screenshot honest: the model is told the image is N ms stale rather than led to believe it shows this step.
+- **`ActionEvent` is both the wire format and the stored payload.** One schema to version. `schema_version`
+  exists so events queued by an old extension are migrated or dropped, never misread.
+- **Everything but identity and time is optional.** The AI stages tolerate sparse rows; a network event has no
+  `element`, a heartbeat has almost nothing.
+- **No request or response bodies.** The earlier design allowed request payloads **[D]**; this skill leaves
+  them out **[A]**. In a shop, a request body *is* a customer record, and nothing downstream needs it: the
+  status code and the endpoint carry the exception-handling signal.
+- **`screenshot_offset_ms`** makes a reused screenshot honest: the model is told the image is N ms stale
+  rather than led to believe it shows this step.
 
-## Postgres **[A]** — executed against PostgreSQL 18; all 24 checks in [testing.md](testing.md) pass
+## Postgres **[A]**, executed against PostgreSQL 18, with all 24 checks in [testing.md](testing.md) passing
 
-The source shipped three of these tables **[P]**: categories, entries, consent. What
+Three of these tables ran in the earlier implementation **[P]**: categories, entries and consent. What
 differs, and why, is in [provenance.md](provenance.md).
 
 ```sql
--- file: schema.sql
+-- file: db/process-mining/schema.sql
 -- Process mining: consent, exclusions, gap-capture entries, extension grants,
 -- and a reference event sink. Plain Postgres 14+; no extension required.
 
@@ -155,7 +159,7 @@ create table pm_consent_ledger (
 create index pm_consent_ledger_user_idx on pm_consent_ledger (user_id, scope_id, occurred_at desc);
 
 -- Append-only means nobody: not the API role, not a migration, not the owner.
--- RLS alone does not give this — without a policy a DELETE is a silent no-op
+-- RLS alone does not give this: without a policy a DELETE is a silent no-op
 -- for API roles and fully permitted for the table owner.
 create or replace function pm_refuse_mutation() returns trigger
   language plpgsql set search_path = '' as $$
@@ -331,58 +335,61 @@ create policy pm_events_team_read on pm_events for select
 | Decision | The tempting alternative | What it breaks |
 |---|---|---|
 | Consent keyed `(user_id, scope_id)` | `user_id` primary key **[P]** | Staff shared between two entities: granting in B rewrites the row's tenant, A's consent vanishes without a revoke |
-| No manager policy on `pm_consent` | A `team_read` policy for managers **[P]** | Any manager lists who opted in, straight from the browser client — whatever the page chooses to render |
+| No manager policy on `pm_consent` | A `team_read` policy for managers **[P]** | Any manager lists who opted in, straight from the browser client, whatever the page chooses to render |
 | Stats via a definer function with suppression | `select count(*)` under a team policy | Small teams: the number names the people |
 | Ledger + immutability trigger | History only in a short-retention event log **[P]** | "Were we allowed to capture on the 14th?" has no answer after the log is pruned |
 | Trigger checks category tenant + `deleted_at` | FK only **[P]** | Entries land under retired or foreign categories |
 | Grants: RLS on, zero policies | A `using (false)` policy | Same effect; fewer moving parts. Either way, *test it* |
-| `unique (user_id, idempotency_key)` on events | Plain inserts | A timed-out batch retried = every step twice, and the branch miner sees loops that never happened |
+| `unique (user_id, idempotency_key)` on events | Plain inserts | A timed-out batch, retried, is every step twice, and the branch miner sees loops that never happened |
 
 ### Traps
 
-- **RLS without a policy turns `DELETE` into a silent no-op, not an error** — and does nothing at all against the table owner. "Append-only" needs the trigger. This was found by the verification run, not by reading.
+- **RLS without a policy turns `DELETE` into a silent no-op, not an error**, and it does nothing at all
+  against the table owner. "Append-only" needs the trigger. This was found by the verification run, not by
+  reading.
 - **`security definer` + `set search_path = ''`**, always, and schema-qualify every name inside.
 - **`using` without `with check`** lets a row be updated out of the caller's tenant.
-- **`revoke all … from public`** on the claim function. Functions are executable by everyone by default.
-- The three seam functions read `current_setting(..., true)`; the `true` makes a missing setting `NULL` instead of an error, and `NULL` fails every policy. Closed by default.
+- **`revoke all ... from public`** on the claim function. Functions are executable by everyone by default.
+- The three seam functions read `current_setting(..., true)`; the `true` makes a missing setting `NULL`
+  instead of an error, and `NULL` fails every policy. Closed by default.
 
-### Supabase wiring **[A]** — not executed
+### Supabase wiring **[A]**, not executed
 
 ```sql
+-- file: db/process-mining/schema.supabase.sql
 create or replace function pm_current_user() returns uuid
   language sql stable as $$ select auth.uid() $$;
 create or replace function pm_current_scope() returns uuid
   language sql stable as $$ select nullif(auth.jwt() -> 'app_metadata' ->> 'organization_id', '')::uuid $$;
 ```
 
-Read tenant and capability claims from `app_metadata` only. `user_metadata` is
-writable by the user.
+Read tenant and capability claims from `app_metadata` only. `user_metadata` is writable by the user.
 
-## Document store (Firestore) **[A]** — not executed
+## Document store (Firestore) **[A]**, not executed
 
 | Concern | Postgres | Firestore |
 |---|---|---|
-| Access posture | RLS is the control; routes are a convenience | **No client rules at all.** Every read and write goes through a route using the Admin SDK. Absence of rules *is* the policy — write that down |
+| Access posture | RLS is the control; routes are a convenience | **No client rules at all.** Every read and write goes through a route using the Admin SDK. Absence of rules *is* the policy: write that down |
 | Consent | `pm_consent (user_id, scope_id)` | `pmConsent/{scopeId}_{userId}` |
 | Ledger | table + immutability trigger | `pmConsentLedger/{autoId}`, written in the same `runTransaction` as the consent change; never updated |
-| Claim a grant | `DELETE … RETURNING` | `runTransaction`: `get` → check expiry and extension id → `delete`. Both steps inside the transaction or two redeemers win |
-| Idempotent event | unique constraint | document id = `${userId}_${sessionId}_${stepIndex}`, written with `create()` — an existing id throws, which is the dedupe |
+| Claim a grant | `DELETE ... RETURNING` | `runTransaction`: `get`, check the expiry and the extension id, then `delete`. Both steps inside the transaction, or two redeemers win |
+| Idempotent event | unique constraint | document id = `${userId}_${sessionId}_${stepIndex}`, written with `create()`, where an existing id throws, and that throw is the dedupe |
 | Aggregate stats | definer function | `count()` aggregation query in a route; apply the same suppression in code |
 | Category guard | trigger | checked in the route before the write |
-| Absent values | `null` | write `null` explicitly — equality filters skip missing fields, and `undefined` is rejected |
+| Absent values | `null` | write `null` explicitly: equality filters skip missing fields, and `undefined` is rejected |
 
-Raw capture volume is high and append-mostly. On either backend, keep it out of the
-operational database past a day or so: archive to a warehouse, mine from there.
+Raw capture volume is high and append-mostly. On either backend, keep it out of the operational database past
+a day or so: archive to a warehouse, mine from there.
 
-## Volume **[D]** — estimates from the source design, unmeasured
+## Volume **[D]**: estimates from the earlier design, unmeasured
 
 | Item | Estimate |
 |---|---|
 | Events per session | ~80 |
 | Sessions per person per day | ~5 |
-| Unique screenshots per session after dedup | 25–35 |
-| Screenshot size | 100–150 KB PNG at 1080p; 30–50 KB as WebP q85 |
-| Storage | 20–25 MB per person per day; 500–600 GB per 100 people per year |
+| Unique screenshots per session after dedup | 25 to 35 |
+| Screenshot size | 100 to 150 KB as PNG at 1080p; 30 to 50 KB as WebP q85 |
+| Storage | 20 to 25 MB per person per day; 500 to 600 GB per 100 people per year |
 
 Treat these as a sizing starting point. Measure in the pilot and replace them.
 
@@ -391,5 +398,5 @@ Treat these as a sizing starting point. Measure in the pilot and replace them.
 - [ ] Seam functions replaced with the host's auth; nothing reads a client-supplied tenant
 - [ ] `verify.sql` from [testing.md](testing.md) run against the adapted schema
 - [ ] Consent key is composite if one person can belong to several tenants
-- [ ] No manager-readable path to individual consent rows — check the API role, not the page
+- [ ] No manager-readable path to individual consent rows, checked on the API role and not on the page
 - [ ] Retention and archive job in place before capture is switched on

@@ -1,37 +1,36 @@
-# Connecting the extension **[A]** (handshake specified in the source **[D]**; never built there)
+# Connecting the extension **[A]** (handshake specified in the earlier design **[D]**, never built there)
 
-The employee never copies a secret. The extension gets a scoped API key through an
-OAuth-style authorization-code flow with PKCE, using Chrome's
-`chrome.identity.launchWebAuthFlow`.
+The employee never copies a secret. The extension gets a scoped API key through an OAuth-style
+authorization-code flow with PKCE, using Chrome's `chrome.identity.launchWebAuthFlow`.
 
 ## Handshake
 
 ```
 popup            chrome.identity        consent page            exchange route        DB
-  │ verifier,state ─┐
-  │ challenge=S256  │
-  ├─ launchWebAuthFlow(…/extension-auth?state&code_challenge&extension_id&redirect_uri)
-  │                 ├───── GET ─────────▶ (login first if needed)
-  │                 │                     validate 4 params + allowlist
-  │                 │                     user clicks Authorize
-  │                 │                     re-validate ─────────────────────────────▶ insert grant (60 s)
-  │                 ◀──── 302 redirect_uri?code&state
-  ◀─ callback URL ──┘
-  │ check state
-  ├──────────── POST {code, code_verifier, extension_id} ──────▶ claim (DELETE…RETURNING)
-  │                                                              verify S256(verifier)
-  │                                                              mint key [process_mining:emit]
-  ◀──────────── { secret, key_id } ─────────────────────────────┘
-  │ store; show "Connected"
+  | verifier, state
+  | challenge = S256
+  +- launchWebAuthFlow(/extension-auth?state&code_challenge&extension_id&redirect_uri)
+  |                 +----- GET --------->  (login first if needed)
+  |                 |                      validate 4 params, check the allowlist
+  |                 |                      user clicks Authorize
+  |                 |                      re-validate ------------------------> insert grant (60 s)
+  |                 <----- 302 redirect_uri?code&state
+  <- callback URL --+
+  | check state
+  +------------ POST {code, code_verifier, extension_id} ------> claim (DELETE ... RETURNING)
+  |                                                              verify S256(verifier)
+  |                                                              mint key [process_mining:emit]
+  <------------ { secret, key_id } -----------------------------+
+  | store the secret, show "Connected"
 ```
 
-`https://<extension-id>.chromiumapp.org/…` is a redirect endpoint Chrome owns and only
-hands to the extension with that ID. No web page can receive it.
+`https://<extension-id>.chromiumapp.org/` and its sub-paths are a redirect endpoint Chrome owns and only hands
+to the extension with that ID. No web page can receive it.
 
 ## The module (shared by extension and server)
 
 ```ts
-// file: pkce.ts
+// file: lib/process-mining/pkce.ts
 // OAuth-style connect flow for a browser extension (public client, PKCE S256).
 // Uses WebCrypto only, so the SAME file runs in the extension service worker,
 // in a route handler on Node >= 20, and in tests.
@@ -67,7 +66,7 @@ function constantTimeEqual(a: string, b: string): boolean {
 }
 
 export async function verifyPkce(verifier: string, storedChallenge: string): Promise<boolean> {
-  // RFC 7636 §4.1: 43–128 chars from the unreserved set.
+  // RFC 7636 section 4.1: 43 to 128 characters from the unreserved set.
   if (!/^[A-Za-z0-9._~-]{43,128}$/.test(verifier)) return false;
   return constantTimeEqual(await challengeFor(verifier), storedChallenge);
 }
@@ -91,7 +90,7 @@ export type AuthorizeValidation =
   | { ok: false; error: AuthorizeParamError };
 
 /**
- * Run on the consent page AND again inside the authorize action — hidden form
+ * Run on the consent page AND again inside the authorize action, because hidden form
  * inputs are attacker-controlled by the time they come back.
  *
  * allowedExtensionIds is the check the regexes cannot make: ANY extension can
@@ -120,7 +119,7 @@ export function validateAuthorizeParams(
   }
   // Compare the PARSED host rather than pattern-matching the raw string. A regex
   // is correct only while it keeps its trailing "/" and every escaped dot; drop
-  // either and "https://<id>.chromiumapp.org.evil.test/" or "…org@evil.test/" pass.
+  // either, and "https://<id>.chromiumapp.org.evil.test/" or "...org@evil.test/" pass.
   if (
     u.protocol !== 'https:' ||
     u.hostname !== `${extension_id}.chromiumapp.org` ||
@@ -149,7 +148,7 @@ export interface ClaimedGrant {
 export interface ExchangeDeps {
   /**
    * Atomically delete-and-return the unexpired grant for (code, extension_id).
-   * MUST be one statement (DELETE … RETURNING / a transaction). SELECT-then-
+   * MUST be one statement: DELETE ... RETURNING, or a transaction. SELECT-then-
    * DELETE lets two concurrent requests both redeem the same code.
    */
   claimGrant(code: string, extensionId: string): Promise<ClaimedGrant | null>;
@@ -183,15 +182,15 @@ export async function exchangeCode(
 
 ## Server pieces
 
-**Consent page** — an ordinary signed-in page. Validate with
-`validateAuthorizeParams(searchParams, ALLOWED_EXTENSION_IDS)`; on failure render an
-error and **no form**. Say what the extension will do, and that nothing is captured
-until the consent toggle is on. Two buttons: Authorize, Cancel.
+**Consent page.** An ordinary signed-in page. Validate with `validateAuthorizeParams(searchParams,
+ALLOWED_EXTENSION_IDS)`; on failure render an error and **no form**. Say what the extension will do, and that
+nothing is captured until the consent toggle is on. Two buttons: Authorize, Cancel.
 
-**Authorize action** — re-validate (hidden inputs are attacker-controlled by the time
-they return), then:
+**Authorize action.** Re-validate, because hidden inputs are attacker-controlled by the time they return),
+then:
 
 ```ts
+// file: app/extension-auth/actions.ts
 // Host seams: currentUser(), currentScope(), insertGrant(), redirect().
 const v = validateAuthorizeParams(Object.fromEntries(formData) as Record<string, string>, ALLOWED_EXTENSION_IDS);
 if (!v.ok) throw new Error('invalid authorization request');
@@ -208,23 +207,26 @@ redirect(buildCallbackUrl(v.params.redirect_uri, code, v.params.state)); // serv
 
 The redirect is server-issued so the code never enters client-side router history.
 
-**Exchange route** — `POST`, no auth header (the code is the credential). Rate-limit by
-IP and by `extension_id` *before* touching the database, then call `exchangeCode` with:
+**Exchange route.** `POST`, with no auth header, because the code is the credential. Rate-limit by IP and by
+`extension_id` *before* touching the database, then call `exchangeCode` with:
 
-- `claimGrant` → `select * from pm_claim_extension_grant($1, $2)` via the privileged client.
-- `mintKey` → the host's existing key-creation path. Scope exactly `['process_mining:emit']`, owner = the grant's user, tenant = the grant's `scope_id`, name such as `Routine Capture (Chrome abcdefgh…)`. **Do not reimplement secret generation.**
+- `claimGrant` calls `select * from pm_claim_extension_grant($1, $2)` through the privileged client.
+- `mintKey` calls the host's existing key-creation path. Scope it to exactly `['process_mining:emit']`, owner
+  the grant's user, tenant the grant's `scope_id`, and a name such as `Routine Capture (Chrome abcdefgh)`.
+  **Do not reimplement secret generation.**
 
-Respond `200 { secret, key_id }` with `cache-control: no-store`, or `401 invalid_grant`.
-Record a key-created audit event tagged `via: 'extension'`.
+Respond `200 { secret, key_id }` with `cache-control: no-store`, or `401 invalid_grant`. Record a key-created
+audit event tagged `via: 'extension'`.
 
-**Revoke route** — `POST`, authenticated by the key itself. Body `{ key_id }`. Proceed
-only if the bearer key's id equals `key_id` — a key can delete itself and nothing else.
-It exists because the popup cannot call a session-authenticated server action.
+**Revoke route.** `POST`, authenticated by the key itself. Body `{ key_id }`. Proceed only if the bearer key's
+id equals `key_id`: a key can delete itself and nothing else. It exists because the popup cannot call a
+session-authenticated server action.
 
-## Extension side **[A]** — not compiled (no Chrome typings were available)
+## Extension side **[A]**, not compiled, because no Chrome typings were available
 
 ```ts
-import { challengeFor, randomHex, randomToken } from '../lib/process-mining/pkce';
+// file: extension/src/auth.ts
+import { challengeFor, randomHex, randomToken } from '../../lib/process-mining/pkce';
 
 export async function connect(consoleOrigin: string): Promise<void> {
   const verifier = randomToken(64);
@@ -260,37 +262,35 @@ export async function connect(consoleOrigin: string): Promise<void> {
 }
 ```
 
-## Corrections and reinforcements to the source design — keep these
+## Corrections and reinforcements to the earlier design: keep these
 
 | The design said | Ship this | Because |
 |---|---|---|
-| Extension id matches `[a-z]{32}` | `[a-p]{32}` | Chrome ids are hex mapped onto a–p |
+| Extension id matches `[a-z]{32}` | `[a-p]{32}` | Chrome ids are hex mapped onto a to p |
 | `code_challenge` is "44-char" (one place), 43 (another) | exactly 43 | unpadded base64url of 32 bytes |
-| `redirect_uri` matches `^https://<id>\.chromiumapp\.org/` | same rule, implemented by comparing the **parsed** hostname and forbidding userinfo and port | **not a defect** — the design's regex is correct as written. It stays correct only while it keeps its trailing `/` and both escaped dots; parsing does not depend on anyone preserving punctuation |
+| `redirect_uri` matches `^https://<id>\.chromiumapp\.org/` | same rule, implemented by comparing the **parsed** hostname and forbidding userinfo and port | **Not a defect.** The design's regex is correct as written. It stays correct only while it keeps its trailing `/` and both escaped dots; parsing does not depend on anyone preserving punctuation |
 | No check on *which* extension is asking | allowlist of ids | any extension can run this flow with a well-formed id of its own; the employee sees your real consent page and clicks Authorize |
-| Exchange: `SELECT`, verify, then `DELETE` | one `DELETE … RETURNING`, verify after | two concurrent redeems both pass the `SELECT` and both mint a key |
+| Exchange: `SELECT`, verify, then `DELETE` | one `DELETE ... RETURNING`, verify after | two concurrent redeems both pass the `SELECT` and both mint a key |
 | Verifier "in memory only" (one place), `storage.session` (another) | `storage.session` | the worker can be evicted between Authorize and the callback |
 | Store the secret in `chrome.storage.sync` | `chrome.storage.local` | `sync` uploads the secret to the user's Google account and onto every signed-in machine, including the personal laptop nobody vetted. The cost: connect once per browser |
 | Response carries `user_email` | omit it; show the email from a key-authenticated `whoami` | one less identifier on an unauthenticated response |
 
 ## Why PKCE
 
-An extension is a public client: its package is downloadable, so it can hold no secret.
-PKCE binds the code to a verifier only the initiating extension has. A code lifted from
-a log or a proxy is useless without it — and with claim-before-verify, a wrong guess
-burns the code.
+An extension is a public client: its package is downloadable, so it can hold no secret. PKCE binds the code to
+a verifier only the initiating extension has. A code stolen from a log or a proxy is useless without it, and
+with claim-before-verify a wrong guess burns the code.
 
 ## Pin the extension ID
 
-Chrome derives an unpacked extension's id from its path, so every developer machine
-gets a different one and the allowlist never matches. Put the public half of a fixed
-key pair in `manifest.json` `key`; keep the private half in a secrets manager.
-Regenerating it changes the id and disconnects everyone.
+Chrome derives an unpacked extension's id from its path, so every developer machine gets a different one and
+the allowlist never matches. Put the public half of a fixed key pair in `manifest.json` `key`; keep the
+private half in a secrets manager. Regenerating it changes the id and disconnects everyone.
 
 ## Tests
 
 ```ts
-// file: pkce.test.ts
+// file: lib/process-mining/pkce.test.ts
 import { describe, expect, it } from 'vitest';
 import { buildCallbackUrl, challengeFor, exchangeCode, randomHex, randomToken, validateAuthorizeParams, verifyPkce, type ClaimedGrant } from './pkce';
 

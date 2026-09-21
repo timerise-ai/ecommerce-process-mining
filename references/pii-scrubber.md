@@ -1,8 +1,8 @@
-# PII scrubber **[A]** (rules specified in the source **[D]**; never built there)
+# PII scrubber **[A]** (rules specified in the earlier design **[D]**, never built there)
 
-Runs inside the ingest route before anything is stored, so neither the event table nor
-its audit trail ever holds a raw value. The extension runs the same module first as a
-courtesy; the server pass is the one that counts.
+Runs inside the ingest route before anything is stored, so neither the event table nor its audit trail ever
+holds a raw value. The extension runs the same module first as a courtesy; the server pass is the one that
+counts.
 
 **It reads JSON. It does not read screenshots.** See [screenshots.md](screenshots.md).
 
@@ -12,7 +12,7 @@ courtesy; the server pass is the one that counts.
 |---|---|---|
 | JWT | `[JWT]` | three base64url segments starting `eyJ` |
 | Email | `[EMAIL @domain]` | local part masked, domain kept |
-| Card | `[CARD]` | 14–19 digits, Luhn-valid **and** a real issuer prefix for that length |
+| Card | `[CARD]` | 14 to 19 digits, Luhn-valid **and** a real issuer prefix for that length |
 | IBAN | `[IBAN]` | mod-97 valid |
 | US SSN | `XXX-XX-XXXX` | `ddd-dd-dddd` |
 | Phone | `[PHONE]` | `+` international, or a separated national format |
@@ -23,7 +23,7 @@ courtesy; the server pass is the one that counts.
 ## The module
 
 ```ts
-// file: scrub.ts
+// file: lib/process-mining/scrub.ts
 // Server-side PII scrubber. Runs inside the ingest route BEFORE anything is
 // persisted, so neither the event store nor its audit trail ever holds a raw
 // value. The extension runs the same module as a best-effort first pass; the
@@ -168,7 +168,7 @@ const AUTH_PATH = /\/(oauth2?|authorize|callback|sso|saml|login|signin|auth)(\/|
 /**
  * True when the URL itself is session-grade material. Such events are DROPPED,
  * not masked: an SSO redirect in the address bar can authenticate elsewhere.
- * `code=` alone is NOT enough — shops use it for discount and product codes —
+ * `code=` alone is NOT enough, because shops use it for discount and product codes,
  * so it only counts in an OAuth-shaped URL (`state=` alongside, or an auth path).
  */
 export function urlCarriesCredential(url: string): boolean {
@@ -236,36 +236,36 @@ export function scrubEvent(ev: ActionEvent, opts: ScrubOptions = {}): ScrubbedEv
 
 ## Decisions that look wrong and are not
 
-**Emails keep their domain.** The source specified masking right of the `@` **[D]**.
-That keeps `jan.kowalski` and hides `acme.com` — backwards. The local part identifies a
-person; the domain tells the SOP "emailed the supplier". **[A]**
+**Emails keep their domain.** The earlier design specified masking right of the `@` **[D]**. That keeps the
+local part and hides the domain, which is backwards. The local part identifies a person; the domain tells the
+SOP "emailed the supplier". **[A]**
 
-**Thirteen digits is never a card.** Thirteen-digit Visa numbers are long extinct;
-thirteen digits in a shop is an EAN. Roughly one barcode in ten passes Luhn by chance,
-as do GTIN-14s and carrier tracking numbers. Without length-plus-prefix matching the
-scrubber turns a tenth of the product catalogue into `[CARD]` and the SOP reads "user
-entered [CARD] into the Barcode field". **[A]**
+**Thirteen digits is never a card.** Thirteen-digit Visa numbers are long extinct; thirteen digits in a shop
+is an EAN. Roughly one barcode in ten passes Luhn by chance, as do GTIN-14s and carrier tracking numbers.
+Without length-plus-prefix matching the scrubber turns a tenth of the product catalogue into `[CARD]` and the
+SOP reads "user entered [CARD] into the Barcode field". **[A]**
 
-**`code=` alone does not drop the event.** The source listed `code=` as a credential
-parameter **[D]**. In commerce it is a discount code or product code a hundred times
-for every OAuth code, and dropping those events deletes the whole promotions workflow.
-It counts only beside `state=` or on an auth-shaped path. **[A]**
+**`code=` alone does not drop the event.** The earlier design listed `code=` as a credential parameter
+**[D]**. In commerce it is a discount code or product code a hundred times for every OAuth code, and dropping
+those events deletes the whole promotions workflow. It counts only beside `state=` or on an auth-shaped path.
+**[A]**
 
-**Credential URLs are dropped, not masked.** An SSO redirect through an identity
-provider puts session-grade material in the address bar. A masked URL still proves a
-login happened at that second; the event has no SOP value. **[D]**
+**Credential URLs are dropped, not masked.** An SSO redirect through an identity provider puts session-grade
+material in the address bar. A masked URL still proves a login happened at that second; the event has no SOP
+value. **[D]**
 
 **Phones need a `+` or separators.** A bare ten-digit run is an order number.
 
-**Label redaction ignores the value.** A "Card number" field holding `hello` is still
-redacted. The label is the author's statement of what belongs there.
+**Label redaction ignores the value.** A "Card number" field holding `hello` is still redacted. The label is
+the author's statement of what belongs there.
 
-**`structuredClone` first.** The caller's event is never mutated — the ingest loop
-reuses the parsed object for its own checks.
+**`structuredClone` first.** The caller's event is never mutated, because the ingest loop reuses the parsed
+object for its own checks.
 
 ## Configuring per deployment
 
 ```ts
+// file: lib/process-mining/scrub-options.ts
 import { CUSTOMER_PII_LABELS, type ScrubOptions } from './scrub';
 
 // Host seam: load extra patterns from settings, compile once per process.
@@ -281,25 +281,28 @@ export function scrubOptionsFor(extra: readonly string[]): ScrubOptions {
 }
 ```
 
-Admin-supplied regexes are a denial-of-service surface: a catastrophic pattern runs on
-every event. Cap their length, test them against a long string with a time budget when
-saved, and gate the setting behind `process_mining:configure`.
+Admin-supplied regexes are a denial-of-service surface: a catastrophic pattern runs on every event. Cap their
+length, test them against a long string with a time budget when saved, and gate the setting behind
+`process_mining:configure`.
 
-`DEFAULT_SENSITIVE_LABELS` carries English and Polish because the source deployment did.
-**Add the labels of every language the captured tools are used in** — a German shop
-admin says "Kartennummer", and an unmatched label is an unredacted value.
+`DEFAULT_SENSITIVE_LABELS` carries English and Polish, as a worked example of a two-language list. **Add the
+labels of every language the captured tools are used in.** A German shop admin says "Kartennummer", and an
+unmatched label is an unredacted value.
 
-## Known limits — state these to whoever signs off
+## Known limits, to be stated to whoever signs off
 
-- Names and street addresses in **free text** are not detected. Only label redaction catches them, and only in labelled fields.
+- Names and street addresses in **free text** are not detected. Only label redaction catches them, and only in
+  labelled fields.
 - National ID formats beyond US SSN are matched by *label*, not by value.
-- Page titles are scrubbed by pattern only. A helpdesk title "Ticket from Jan Kowalski" passes through. If a captured tool puts names in titles, drop `tab.title` for that host.
-- The scrubber is regex-based. It lowers risk; it does not make captured data anonymous, and the DPIA must not say it does.
+- Page titles are scrubbed by pattern only. A helpdesk title "Ticket from Jan Kowalski" passes through. If a
+  captured tool puts names in titles, drop `tab.title` for that host.
+- The scrubber is regex-based. It lowers risk; it does not make captured data anonymous, and the DPIA must not
+  say it does.
 
 ## Tests
 
 ```ts
-// file: privacy.test.ts
+// file: lib/process-mining/privacy.test.ts
 import { describe, expect, it } from 'vitest';
 import { diffExclusions, isHostExcluded, parseExcludedDomains } from './exclusions';
 import { isValidIban, looksLikeCard, scrubEvent, scrubString, urlCarriesCredential, CUSTOMER_PII_LABELS } from './scrub';
@@ -398,7 +401,7 @@ describe('urlCarriesCredential', () => {
 
 const base: ActionEvent = {
   schema_version: 1, t: '2026-05-02T10:05:12.001Z', action: 'input', session_id: 'sess-0001', step_index: 3,
-  tab: { url: 'https://admin.shop.example/orders/1001?email=jan@client.pl', title: 'Order #1001 — jan@client.pl' },
+  tab: { url: 'https://admin.shop.example/orders/1001?email=jan@client.pl', title: 'Order #1001 - jan@client.pl' },
   element: { selector: 'input#note', label: 'Internal note', type: 'text' },
   value: 'refund to PL61109010140000071219812874',
 };
@@ -409,7 +412,7 @@ describe('scrubEvent', () => {
     const r = scrubEvent(base);
     expect(base).toEqual(frozen);
     expect(r.event?.tab?.url).toBe('https://admin.shop.example/orders/1001?email=[EMAIL @client.pl]');
-    expect(r.event?.tab?.title).toBe('Order #1001 — [EMAIL @client.pl]');
+    expect(r.event?.tab?.title).toBe('Order #1001 - [EMAIL @client.pl]');
     expect(r.event?.value).toBe('refund to [IBAN]');
     expect(r.redactions).toEqual({ email: 2, iban: 1 });
   });
@@ -435,5 +438,5 @@ describe('scrubEvent', () => {
 - [ ] Server pass runs before any write, including before any log line
 - [ ] Label patterns cover every UI language in use
 - [ ] `CUSTOMER_PII_LABELS` on wherever buyer records are on screen
-- [ ] Redaction counts recorded per batch — a sudden zero means the scrubber stopped running
+- [ ] Redaction counts recorded per batch, because a sudden zero means the scrubber stopped running
 - [ ] Admin regexes length-capped and time-tested on save

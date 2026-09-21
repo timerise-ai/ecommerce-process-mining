@@ -1,7 +1,7 @@
-# The extension **[A]** logic, **[D]** architecture — nothing here has run in a browser
+# The extension: **[A]** logic, **[D]** architecture, and nothing here has run in a browser
 
-Manifest V3. Reads the page's structure — which control, what label, what happened
-next — instead of recording pixels.
+Manifest V3. It reads the page's structure, meaning which control, what label and what happened next, instead
+of recording pixels.
 
 | | Video + OCR | DOM events |
 |---|---|---|
@@ -10,9 +10,9 @@ next — instead of recording pixels.
 | Searchable | after visual indexing | natively |
 | Hidden failures | invisible | request status codes |
 
-**[D]** The source claimed ~95–98% field-read accuracy for DOM capture with a
-screenshot fallback, against 70–90% for DOM alone on enterprise apps. **Those figures
-were never measured.** Treat accuracy as an open question your pilot answers.
+**[D]** The earlier design claimed 95 to 98 per cent field-read accuracy for DOM capture with a screenshot
+fallback, against 70 to 90 per cent for DOM alone on enterprise apps. **Those figures were never measured.**
+Treat accuracy as an open question your pilot answers.
 
 ## Layout **[D]**
 
@@ -22,21 +22,22 @@ extension/
   src/background.ts   service worker: pause state, badge, exclusions cache, queue, screenshots
   src/content.ts      listeners, label resolution, value gate, budget, session rotation
   src/popup/          connect, pause, pending count + discard, per-host allowlist
-  src/auth.ts         connect flow — see extension-auth.md
+  src/auth.ts         connect flow; see extension-auth.md
   _locales/<lang>/messages.json
 ```
 
-Own `package.json`, own bundler (esbuild is enough), not part of the web app's build.
-It imports the shared module folder — see [adaptation.md](adaptation.md).
+Own `package.json`, own bundler (esbuild is enough), not part of the web app's build. It imports the shared
+module folder; see [adaptation.md](adaptation.md).
 
-## Manifest **[D]**, with corrections **[A]** — not loaded into Chrome
+## Manifest **[D]**, with corrections **[A]**, not loaded into Chrome
 
-```json
+```jsonc
+// file: extension/manifest.json
 {
   "manifest_version": 3,
   "name": "__MSG_name__",
   "default_locale": "en",
-  "key": "<public key — pins the extension id>",
+  "key": "<public key, which pins the extension id>",
   "permissions": ["storage", "identity", "alarms", "webRequest", "scripting"],
   "optional_host_permissions": ["https://*/*"],
   "host_permissions": [],
@@ -46,15 +47,23 @@ It imports the shared module folder — see [adaptation.md](adaptation.md).
 }
 ```
 
-- **`host_permissions` empty at install.** The prompt never says "read all your data on all websites". Each host is requested with `chrome.permissions.request` from a click in the popup; a person who allows nothing grants nothing.
-- **No static `content_scripts`.** They would need install-time host access. Register per granted host with `chrome.scripting.registerContentScripts` (`allFrames: true`). **[A]**
-- **`default_popup` and `action.onClicked` are mutually exclusive.** The source promised "one click on the toolbar icon pauses" *and* a popup **[D]** — impossible. Shipped: the popup opens with Pause as its first, largest control; one-action pause is the `toggle-pause` command. Help text must describe that, not the single-click icon. **[A]**
-- **`chrome.debugger`** (response bodies) is left out. It shows a persistent "is debugging this browser" banner, detaches when DevTools opens, and lengthens store review. Status codes carry the exception-handling signal.
+- **`host_permissions` empty at install.** The prompt never says "read all your data on all websites". Each
+  host is requested with `chrome.permissions.request` from a click in the popup; a person who allows nothing
+  grants nothing.
+- **No static `content_scripts`.** They would need install-time host access. Register per granted host with
+  `chrome.scripting.registerContentScripts` (`allFrames: true`). **[A]**
+- **`default_popup` and `action.onClicked` are mutually exclusive.** The earlier design promised "one click on
+  the toolbar icon pauses" *and* a popup **[D]**, which Manifest V3 does not allow. Shipped: the popup opens
+  with Pause as its first and largest control, and one-action pause is the `toggle-pause` command. Help text
+  must describe that, not the single-click icon. **[A]**
+- **`chrome.debugger`** (response bodies) is left out. It shows a persistent "is debugging this browser"
+  banner, detaches when DevTools opens, and lengthens store review. Status codes carry the exception-handling
+  signal.
 
-## Control logic (no `chrome.*` inside — fully tested)
+## Control logic: no `chrome.*` inside, and fully tested
 
 ```ts
-// file: capture-control.ts
+// file: lib/process-mining/capture-control.ts
 // Extension-side control logic with no chrome.* calls in it: pause state,
 // capture budget, offline queue bounds, session rotation. The service worker
 // and content script feed these with timestamps and persist what they return.
@@ -149,7 +158,7 @@ export class CaptureBudget {
 
   /**
    * At most one heartbeat a minute, and only when something was dropped. It is
-   * what tells the AI pipeline the stream was SAMPLED — without it, a gap reads
+   * what tells the AI pipeline the stream was SAMPLED. Without it, a gap reads
    * as "the user did nothing here".
    */
   heartbeat(now: number): { dropped_count: number } | null {
@@ -263,10 +272,11 @@ export function nextStep(s: SessionState): { stepIndex: number; state: SessionSt
 }
 ```
 
-### Wiring it to Chrome **[A]** — not compiled
+### Wiring it to Chrome **[A]**, not compiled
 
 ```ts
-// background.ts — the single owner of pause state
+// file: extension/src/background.ts
+// The single owner of pause state.
 const KEY = 'pause';
 async function loadPause(): Promise<PauseState> {
   return parsePauseState((await chrome.storage.local.get(KEY))[KEY]);
@@ -280,8 +290,13 @@ async function applyPause(cmd: PauseCommand): Promise<void> {
 }
 chrome.commands.onCommand.addListener((c) => { if (c === 'toggle-pause') void applyPause({ type: 'toggle' }); });
 chrome.alarms.onAlarm.addListener((a) => { if (a.name === 'resume') void applyPause({ type: 'resume' }); });
+```
 
-// content.ts — a local copy, kept current by storage events
+The content script never asks for that state; it keeps a copy.
+
+```ts
+// file: extension/src/content.ts
+// A local copy of the pause state, kept current by storage events.
 let pause: PauseState = { kind: 'paused-sticky' };          // paused until proven otherwise
 void chrome.storage.local.get('pause').then((r) => { pause = parsePauseState(r.pause); });
 chrome.storage.onChanged.addListener((c, area) => {
@@ -292,35 +307,33 @@ const capturing = (): boolean => isCapturing(pause, Date.now());
 
 ## Why it is built this way
 
-**Pause state is persisted and clock-derived.** MV3 workers are evicted after ~30 s
-idle. A sticky pause held in a variable lapses on the next wake — capture silently
-resumes during the sensitive call the person paused for. A timed pause driven only by
-`setTimeout` never ends. So: state in `storage.local`, `chrome.alarms` for the wake-up,
-and `isCapturing` decided from the clock so a lost alarm cannot strand it.
+**Pause state is persisted and clock-derived.** MV3 workers are evicted after ~30 s idle. A sticky pause held
+in a variable lapses on the next wake, and capture silently resumes during the sensitive call the person
+paused for. A timed pause driven only by `setTimeout` never ends. So: state in `storage.local`,
+`chrome.alarms` for the wake-up, and `isCapturing` decided from the clock so a lost alarm cannot strand it.
 
-**The content script does not ask the worker on each event.** The source described a
-per-event `sendMessage` round-trip that "returns synchronously in microseconds"
-**[D]**. `sendMessage` is asynchronous, costs milliseconds, and wakes an evicted worker
-— at 50 events a second that is the extension's whole CPU budget. Keep a local copy
-updated by `storage.onChanged`, and **start paused** until the first read lands. **[A]**
+**The content script does not ask the worker on each event.** The earlier design described a per-event
+`sendMessage` round-trip that "returns synchronously in microseconds" **[D]**. `sendMessage` is asynchronous,
+costs milliseconds, and wakes an evicted worker and at 50 events a second that is the extension's whole CPU
+budget. Keep a local copy updated by `storage.onChanged`, and **start paused** until the first read lands.
+**[A]**
 
-**The budget exists because SPAs are loud.** Enterprise apps emit >1,000 mutations a
-second. 50 captured events per second per tab, excess dropped, one heartbeat a minute
-saying how many — so a gap is read as "sampled", not "idle". **[D]**
+**The budget exists because SPAs are loud.** Enterprise apps emit >1,000 mutations a second. 50 captured
+events per second per tab, excess dropped, one heartbeat a minute saying how many, so a gap is read as
+"sampled" and not as "idle". **[D]**
 
-**The queue is bounded and drops oldest.** 8 MB (under `storage.local`'s 10 MB; do not
-request `unlimitedStorage` — it adds an install warning) and 7 days. On `403
-consent_required` it is purged: events captured under a withdrawn consent are not held
-for later. **[A]**
+**The queue is bounded and drops oldest.** 8 MB (under `storage.local`'s 10 MB; do not request
+`unlimitedStorage`, which adds an install warning) and 7 days. On `403 consent_required` it is purged: events
+captured under a withdrawn consent are not held for later. **[A]**
 
 **Sessions rotate on path change.** SPAs fire no `load` on route change; hook
-`history.pushState`/`replaceState` and `popstate`, or a five-step wizard collapses into
-one step. Query-only changes do not rotate — filters would shred every list page. **[A]**
+`history.pushState`/`replaceState` and `popstate`, or a five-step wizard collapses into one step. Query-only
+changes do not rotate, because filters would shred every list page. **[A]**
 
 ## Naming the field
 
 ```ts
-// file: label.ts
+// file: lib/process-mining/label.ts
 // Content-script side: name the field the user touched, say how much that name
 // can be trusted, and decide whether its value may be read at all.
 
@@ -389,7 +402,7 @@ export function resolveLabel(el: Element): ResolvedLabel {
   return { label: null, confidence: 'low' };
 }
 
-/** `input#tx_9f3a2c11`, `:r1f:`, `ember1042` — ids that change on the next render. */
+/** `input#tx_9f3a2c11`, `:r1f:`, `ember1042`: ids that change on the next render. */
 export function looksGenerated(id: string): boolean {
   return (
     /\d{4,}/.test(id) ||
@@ -439,30 +452,37 @@ export function mayReadValue(el: Element): boolean {
 | `medium` | inferred: placeholder, legend, nearby text, a human-looking `name` | text-only by default |
 | `low` | nothing semantic; canvas; generated id | needs the screenshot crop |
 
-`mayReadValue` is the most important function in the extension. What it refuses is
-never in memory, never queued, never sent, never scrubbed.
+`mayReadValue` is the most important function in the extension. What it refuses is never in memory, never
+queued, never sent, never scrubbed.
 
 ## Where DOM capture is weak **[D]**
 
 | Pattern | Seen in | Effect |
 |---|---|---|
-| Closed Shadow DOM | Salesforce Lightning, web-component UIs | observers do not pierce closed roots → `low` |
-| Canvas-rendered UI | report viewers, label designers, some PDF viewers | no nodes → `low` |
+| Closed Shadow DOM | Salesforce Lightning, web-component UIs | observers do not pierce closed roots, so `low` |
+| Canvas-rendered UI | report viewers, label designers, some PDF viewers | no nodes, so `low` |
 | Cross-origin iframes | payment widgets, embedded BI, e-signature | own content script, own `session_id`, `frame_origin` set |
-| Bot protection | Akamai, Imperva, DataDome-fronted portals | page may degrade with the extension active — test each target, list the incompatible ones |
+| Bot protection | Akamai, Imperva, DataDome-fronted portals | the page may degrade with the extension active, so test each target and list the incompatible ones |
 | Virtualised tables | order and product grids | rows unmount on scroll; capture the click, not the mutation storm |
 
-## Unproven assumptions — settle these in a spike before committing **[A]**
+## Unproven assumptions: settle these in a spike before committing **[A]**
 
-1. **Event-triggered `captureVisibleTab` under runtime-granted hosts.** Documented as needing `<all_urls>` or `activeTab`; `activeTab` is granted by a user gesture *on the extension*, not by a click in the page. If a granted host permission does not suffice, screenshots need `<all_urls>` — which changes the install prompt and the privacy story. **Test first; it decides whether screenshots ship.**
-2. **`webRequest` in MV3** is observe-only and needs host access. Verify status codes arrive for `fetch` calls on your target apps.
-3. **Hash cost.** The source estimated ~50 µs per perceptual hash **[D]**; that ignores decoding a data-URL PNG into pixels in a worker (`createImageBitmap` + `OffscreenCanvas`), which is milliseconds. Measure.
-4. **Store review.** `identity` + broad optional hosts + employee-monitoring purpose draws scrutiny: budget weeks. Enterprise force-install by policy avoids the public listing.
+1. **Event-triggered `captureVisibleTab` under runtime-granted hosts.** Documented as needing `<all_urls>` or
+   `activeTab`; `activeTab` is granted by a user gesture *on the extension*, not by a click in the page. If a
+   granted host permission does not suffice, screenshots need `<all_urls>`, which changes the install prompt
+   and the privacy story. **Test first; it decides whether screenshots ship.**
+2. **`webRequest` in MV3** is observe-only and needs host access. Verify status codes arrive for `fetch` calls
+   on your target apps.
+3. **Hash cost.** The earlier design estimated some 50 microseconds per perceptual hash **[D]**, which ignores
+   decoding a data-URL PNG into pixels in a worker, through `createImageBitmap` and `OffscreenCanvas`, and
+   that takes milliseconds. Measure.
+4. **Store review.** `identity` + broad optional hosts + employee-monitoring purpose draws scrutiny: budget
+   weeks. Enterprise force-install by policy avoids the public listing.
 5. **Chromium only.** Edge runs the same build. Firefox and Safari differ materially.
 
 ## Checklist
 
-- [ ] Spike items 1–3 answered on the real target apps
+- [ ] Spike items 1 to 3 answered on the real target apps
 - [ ] Empty install-time host permissions; per-host runtime grants
 - [ ] Pause persisted, alarm-backed, clock-derived; content script starts paused
 - [ ] `mayReadValue` on every value read, no exceptions

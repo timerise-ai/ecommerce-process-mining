@@ -1,40 +1,40 @@
 # Employee and manager pages
 
-The only slice the source ran in production **[P]** — and the part worth shipping
-first, because it delivers value with no extension at all.
+The only slice the earlier implementation ran in production **[P]**, and the part worth shipping first,
+because it delivers value with no extension at all.
 
-## Employee page — "My routine"
+## Employee page: "My routine"
 
 Signed-in only; no capability. Two groups, privacy on top.
 
 ```
-┌ Privacy ───────────────────────────────────────────────┐
-│ What is captured / never captured / who sees it  (copy) │
-│ [ toggle ] Capture consent        state: server-confirmed│
-│ Excluded domains  [ textarea ]    errors shown per line  │
-│ Link: install + connect help                             │
-├ Log work the browser can't see ─────────────────────────┤
-│ Category ▾   Title ________   Notes (optional) ________  │
-│ ▸ Add detail: kind · frequency · minutes · tool · outcome│
-│ [ Add entry ]                                            │
-├ Your entries ───────────────────────────────────────────┤
-│ category · date · title · notes        [edit] [delete]   │
-│ [ Load more ]        ← keyset pagination, not a silent cap│
-└──────────────────────────────────────────────────────────┘
++- Privacy -----------------------------------------------+
+| what is captured / never captured / who sees it  (copy)  |
+| [ toggle ] Capture consent      state: server-confirmed  |
+| Excluded domains  [ textarea ]  errors shown per line    |
+| link: install and connect help                           |
++- Log work the browser cannot see ------------------------+
+| Category [v]  Title ________  Notes (optional) ________  |
+| [>] Add detail: kind, frequency, minutes, tool, outcome  |
+| [ Add entry ]                                            |
++- Your entries -------------------------------------------+
+| category, date, title, notes           [edit] [delete]   |
+| [ Load more ]      keyset pagination, not a silent cap   |
++----------------------------------------------------------+
 ```
 
-States to build: no categories (tell them who can add some), empty list, saving,
-per-field validation errors, save failed.
+States to build: no categories (tell them who can add some), empty list, saving, per-field validation errors,
+save failed.
 
-### The consent toggle must not lie **[A]** — fixes a live defect in the source
+### The consent toggle must not lie **[A]**
 
-The source flipped the switch optimistically, then called the server. On failure it
-showed an error toast and **left the switch where the user put it** **[P]**. An employee
-turns capture off, the save fails, the switch says Off, the server still says On. For
-this one control, the wrong state is worse than a spinner.
+This fixes a live defect. The earlier implementation flipped the switch optimistically, then called the
+server. On failure it showed an error toast and **left the switch where the user put it** **[P]**. An employee
+turns capture off, the save fails, the switch says Off, the server still says On. For this one control, the
+wrong state is worse than a spinner.
 
 ```ts
-// file: use-confirmed-toggle.ts
+// file: lib/process-mining/use-confirmed-toggle.ts
 // A toggle for settings where showing the wrong state is worse than showing a
 // spinner. The switch moves only to what the server confirmed.
 
@@ -81,24 +81,23 @@ export function useConfirmedToggle(
 }
 ```
 
-Render `value`; disable the control while `pending`; show `error` inline beside it, not
-only in a toast that disappears.
+Render `value`; disable the control while `pending`; show `error` inline beside it, not only in a toast that
+disappears.
 
 ### Server actions
 
 | Action | Rules |
 |---|---|
-| `setConsent(enabled)` | Tenant = **the session's tenant**, the same source the RLS check uses. Grant = upsert on `(user_id, scope_id)` clearing `revoked_at`. Revoke = update setting `revoked_at`; **if no row was updated, say so** — do not record a revocation that did not happen |
-| `saveExclusions(raw)` | `parseExcludedDomains`; any error → return all line errors, write nothing |
+| `setConsent(enabled)` | Tenant = **the session's tenant**, the same source the RLS check uses. Grant = upsert on `(user_id, scope_id)` clearing `revoked_at`. Revoke = update setting `revoked_at`; **if no row was updated, say so**, and do not record a revocation that did not happen |
+| `saveExclusions(raw)` | `parseExcludedDomains`; on any error return all the line errors and write nothing |
 | `addEntry(input)` | `routineEntryInput.parse`; tenant from session; the DB trigger rejects foreign or retired categories |
-| `updateEntry(id, input)` | Owner only (RLS). The source had no edit — delete-and-retype meant hasty entries stayed hasty **[P]** |
+| `updateEntry(id, input)` | Owner only, under RLS. The earlier implementation had no edit, so delete-and-retype meant hasty entries stayed hasty **[P]** |
 | `deleteEntry(id)` | Check the affected-row count; "deleted" for zero rows is a lie **[P]** |
 
-Two defects in the source's `setConsent` to avoid **[P]**: it re-derived the tenant by
-joining user → store → organisation while the page and the RLS policy used the session
-claim — two sources for one fact, which disagree for anyone whose active tenant is not
-their home one; and its revoke path updated zero rows silently while still writing a
-"consent revoked" audit event.
+Two defects in the earlier `setConsent` to avoid **[P]**. It re-derived the tenant by joining user to store to
+organisation while the page and the RLS policy used the session claim: two sources for one fact, which
+disagree for anyone whose active tenant is not their home one. And its revoke path updated zero rows silently
+while still writing a "consent revoked" audit event.
 
 ### Entry fields
 
@@ -106,16 +105,16 @@ their home one; and its revoke path updated zero rows silently while still writi
 |---|---|---|
 | category, title | yes **[P]** | the five-second entry; never add a third required field |
 | notes | no **[P]** | |
-| `entry_kind` task · blocker · decision · tool_gap | default task **[D]** | blockers cap what automation can reach; they sort first |
+| `entry_kind`, one of task, blocker, decision, tool_gap | default task **[D]** | blockers cap what automation can reach; they sort first |
 | `frequency`, `duration_minutes` | no **[D]** | without them nothing can be costed or ranked |
-| `tool_or_system` | no **[D]** | autocomplete from existing values — see `normalizeTool` |
-| `outcome` | no **[D]** | verb-and-result phrasing the narrator needs: "confirms invoice match → books in ERP" |
+| `tool_or_system` | no **[D]** | autocomplete from existing values; see `normalizeTool` |
+| `outcome` | no **[D]** | the verb-and-result phrasing the narrator needs: "confirms the invoice match, then books it in the ERP" |
 | `linked_event_ids` | no **[D]** | loose link to a captured session; offered only when the person has recent events |
 
 Keep the detail fields behind "Add detail". The default form stays at two inputs.
 
 ```ts
-// file: routine.ts
+// file: lib/process-mining/routine.ts
 // Gap-capture form: validation for the work the extension cannot see, and the
 // ranking the manager view sorts by.
 
@@ -164,7 +163,7 @@ export interface RankedEntry<T> {
 
 /**
  * Blockers first (they cap what automation can reach), then by cost, with
- * un-costed rows last rather than dropped — an entry nobody sized is a prompt
+ * un-costed rows last rather than dropped, because an entry nobody sized is a prompt
  * to ask, not something to hide.
  */
 export function rankForAutomation<
@@ -183,52 +182,48 @@ export function rankForAutomation<
 
 ## Manager page **[P]** stub, **[A]** corrections
 
-Gate: `process_mining:read`. Sections: enrollment, automation candidates, recent
-entries, pipeline health.
+Gate: `process_mining:read`. Sections: enrollment, automation candidates, recent entries, pipeline health.
 
 | Section | Source | Rule |
 |---|---|---|
 | Enrollment | `pm_enrollment_stats(headcount)` | show "n of N", or "not shown for small teams" when `suppressed` |
-| Automation candidates | team entries → `rankForAutomation` | show annual hours; un-costed rows last with a "needs sizing" tag |
+| Automation candidates | team entries through `rankForAutomation` | show annual hours; un-costed rows last with a "needs sizing" tag |
 | By tool | group on `lower(tool_or_system)` | where integration effort pays back |
 | Recent entries | team entries, newest first, paginated | format dates in the **viewer's** locale and zone |
 | Pipeline health | ingest counters ([ingest.md](ingest.md)) | last event received, redactions, dead letters |
 
-What the source got wrong here **[P]**: it counted consent by fetching rows and taking
-`.length` — capped by the API's default page size, so the number stops growing at the
-cap with no sign; it left that query unscoped, so an all-tenant admin saw "40 consented
-of 12 employees"; and it formatted dates with the server's locale.
+What the earlier implementation got wrong here **[P]**: it counted consent by fetching rows and taking
+`.length`, which is capped by the API's default page size, so the number stops growing at the cap with no
+sign; it left that query unscoped, so an all-tenant admin saw more consents than employees; and it formatted
+dates with the server's locale.
 
-Never build: a per-person activity timeline for managers, a leaderboard, an
-"employees who have not opted in" list. Each converts a documentation tool into
-monitoring, and each is one query away — which is why the database, not the page,
-withholds the rows.
+Never build: a per-person activity timeline for managers, a leaderboard, an "employees who have not opted in"
+list. Each converts a documentation tool into monitoring, and each is one query away, which is why the
+database, not the page, withholds the rows.
 
-## Help page **[D]** — no sidebar entry; linked from the employee page
+## Help page **[D]**: no sidebar entry, linked from the employee page
 
-In order: install → connect → turn on consent → set excluded domains (suggest bank,
-health, personal email) → allow sites → pause → what is and is not captured → where the
-data goes and for how long → pause vs revoke vs disconnect → troubleshooting.
+In this order: install, connect, turn on consent, set excluded domains (suggest the bank, health services and
+personal email), allow sites, pause, what is and is not captured, where the data goes and for how long, pause
+against revoke against disconnect, and troubleshooting.
 
-Troubleshooting tree: *Not connected* → connect again · *Authorization came back with
-an error* → wrong console domain, or the extension is not on the allowlist · *A tab is
-silent* → excluded domains, then the pause badge, then the allowlist · *No events
-showing* → consent, then connection · *No screenshots* → the deployment's screenshot
-mode.
+The troubleshooting tree has four branches. *Not connected*: connect again. *Authorization came back with an
+error*: the wrong console domain, or the extension is not on the allowlist. *A tab is silent*: excluded
+domains first, then the pause badge, then the allowlist. *No events showing*: consent, then the connection.
+*No screenshots*: the deployment's screenshot mode.
 
-Do not promise "one click on the toolbar icon pauses" unless the extension has no popup
-— see [extension.md](extension.md).
+Do not promise "one click on the toolbar icon pauses" unless the extension has no popup. See
+[extension.md](extension.md).
 
 ## Strings
 
-Every string on these pages is a key, in every locale. The source hard-coded English
-throughout a fully internationalised app **[P]**. Consent copy is the last text that
-should be English-only.
+Every string on these pages is a key, in every locale. The earlier implementation hard-coded English
+throughout a fully internationalised app **[P]**. Consent copy is the last text that should be English only.
 
 ## Tests
 
 ```ts
-// file: routine.test.ts
+// file: lib/process-mining/routine.test.ts
 import { describe, expect, it } from 'vitest';
 import { annualHours, normalizeTool, rankForAutomation, routineEntryInput } from './routine';
 
@@ -267,7 +262,7 @@ describe('routine entries', () => {
 ```
 
 ```ts
-// file: use-confirmed-toggle.test.ts
+// file: lib/process-mining/use-confirmed-toggle.test.ts
 // @vitest-environment happy-dom
 import { act, renderHook } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';

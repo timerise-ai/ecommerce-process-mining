@@ -1,39 +1,40 @@
 # Consent and privacy
 
-Capture is a privacy system that happens to produce data. This file is the contract;
-the other references implement it.
+Capture is a privacy system that happens to produce data. This file is the contract; the other references
+implement it.
 
 ## Two groups of people
 
 | | The employee | The customer on the screen |
 |---|---|---|
 | Relationship | Uses the extension | Appears in the order, ticket or return being handled |
-| Consented? | Yes — per person, per tenant, revocable | **No, and cannot be asked** |
-| Protected by | Layers 1–4 below | Value gating, the scrubber, screenshot mode |
+| Consented? | Yes: per person, per tenant, revocable | **No, and cannot be asked** |
+| Protected by | Layers 1 to 4 below | Value gating, the scrubber, screenshot mode |
 
-The source design was written for payroll and HR tools, where the data on screen is
-mostly the employee's own employer's **[D]**. In a shop almost every captured screen
-shows a buyer's name, address, email and order. **[A]** That changes three defaults:
+The earlier design was written for tools where the data on screen mostly belongs to the employee's own
+employer **[D]**. In a shop almost every captured screen shows a buyer's name, address, email and order.
+**[A]** That changes three defaults:
 
 1. Turn on `CUSTOMER_PII_LABELS` in the scrubber ([pii-scrubber.md](pii-scrubber.md)).
 2. Start with screenshot mode `metadata_only` ([screenshots.md](screenshots.md)).
-3. Capture **structure, not content**: which field was touched and in what order matters to an SOP; the buyer's street does not.
+3. Capture **structure, not content**: which field was touched and in what order matters to an SOP; the
+   buyer's street does not.
 
 ## The four layers **[D]**, applied in order to every event
 
 | # | Layer | Enforced where | Fails how |
 |---|---|---|---|
-| 1 | **Consent record** — row exists, `revoked_at` is null | Server, re-read on every batch | `403 consent_required`; extension purges its queue and stops |
-| 2 | **Excluded domains** — per-employee denylist | Extension *before any listener reads the tab*; server again | Event never created / dropped server-side |
+| 1 | **Consent record**, meaning the row exists and `revoked_at` is null | Server, re-read on every batch | `403 consent_required`; extension purges its queue and stops |
+| 2 | **Excluded domains**, a per-employee denylist | Extension *before any listener reads the tab*; server again | Event never created / dropped server-side |
 | 3 | **Scrubbing** | Extension best-effort; server authoritative, before persistence | Value masked, or whole event dropped |
-| 4 | **Tab allowlist** — default deny; employee opts hosts in | Extension; host permission requested at runtime per host | Tab not captured |
+| 4 | **Tab allowlist**, default deny, with the employee opting hosts in | Extension; host permission requested at runtime per host | Tab not captured |
 
 Layer 2 beats layer 4: an excluded domain inside an allowed tab is not captured.
 
 Pause sits in front of all four and is checked first:
 
 ```
-event → paused? → consent? → allowlisted? → excluded? → budget? → capture
+event --> paused? --> consent? --> allowlisted? --> excluded? --> budget? --> capture
 ```
 
 ## Pause, revoke, disconnect **[D]**
@@ -46,16 +47,15 @@ event → paused? → consent? → allowlisted? → excluded? → budget? → ca
 | Reversible by | one click | re-granting | reconnecting |
 | Pending events | kept; user may discard | **purged** on the next `403` **[A]** | kept until a key exists again, max 7 days |
 
-Pause must be one action, visible without opening anything (a badge), and must survive
-the service worker being killed — see [extension.md](extension.md).
+Pause must be one action, visible without opening anything (a badge), and must survive the service worker
+being killed. See [extension.md](extension.md).
 
 ## Excluded domains
 
-One hostname per line. `bank.com` is exact; `*.bank.com` is every subdomain **and the
-apex**.
+One hostname per line. `bank.com` is exact; `*.bank.com` is every subdomain **and the apex**.
 
 ```ts
-// file: exclusions.ts
+// file: lib/process-mining/exclusions.ts
 // Excluded-domain list: parsing for the settings form, matching for the
 // extension (pre-capture) and the ingest route (defence in depth). One module,
 // imported by both sides, so the two filters cannot drift apart.
@@ -125,7 +125,7 @@ export function parseExcludedDomains(raw: string): ExclusionParse {
 
 /**
  * `*.bank.com` also matches the apex `bank.com`. A person who excludes every
- * subdomain of their bank does not mean "but do record the bare domain" — for a
+ * subdomain of their bank does not mean "but do record the bare domain". For a
  * privacy control, the wider reading is the safe one.
  */
 export function isHostExcluded(host: string, entries: readonly string[]): boolean {
@@ -165,58 +165,57 @@ Behaviour worth knowing:
 
 | Input | Result | Why |
 |---|---|---|
-| `https://MyBank.com/login?x=1` | `mybank.com` | People paste URLs. Rejecting a paste teaches them to give up on the privacy control **[A]** (the source specified reject **[D]**) |
+| `https://MyBank.com/login?x=1` | `mybank.com` | People paste URLs. Rejecting a paste teaches them to give up on the privacy control **[A]**; the earlier design specified rejection **[D]** |
 | `*.bank.com` vs host `bank.com` | excluded | Nobody means "every subdomain of my bank, but do record the bare domain" **[A]** |
 | `bücher.example` | stored as `xn--bcher-kva.example` | `location.hostname` reports punycode; an unconverted entry never matches |
 | `bank.com.evil.test` vs `*.bank.com` | not excluded | Suffix match is on `.bank.com`, anchored at the end |
 | A host that will not parse | **excluded** | Cannot prove it is allowed |
 | Line 501 | `too_many` error on that line | A cap that says so |
 
-On save: parse → if `errors` is non-empty, show them against their line numbers and
-save nothing → otherwise write `entries` and let the ledger trigger record the diff.
-Store the typed array, never the raw textarea.
+On save, parse the textarea. If `errors` is non-empty, show each one against its line number and save nothing;
+otherwise write `entries` and let the ledger trigger record the diff. Store the typed array, never the raw
+textarea.
 
-The extension fetches the list when the popup opens and every five minutes. A change
-therefore takes up to five minutes to reach a browser — say so next to the field; the
-server-side re-check covers the gap.
+The extension fetches the list when the popup opens and every five minutes. A change therefore takes up to
+five minutes to reach a browser. Say so next to the field: the server-side re-check covers the gap.
 
 ## What the employee must be told **[D]**
 
 Before the toggle can be switched on, in their language, in plain words:
 
-- **Captured:** clicks, field changes with the field's label, page addresses, request status codes, optional screenshots of the visible tab — only on sites they allowed.
-- **Never captured:** excluded domains; tabs not allowed; other tabs or windows; passwords, card fields and one-time codes; anything while paused; response bodies.
+- **Captured:** clicks, field changes with the field's label, page addresses, request status codes, optional
+  screenshots of the visible tab, and only on sites they allowed.
+- **Never captured:** excluded domains; tabs not allowed; other tabs or windows; passwords, card fields and
+  one-time codes; anything while paused; response bodies.
 - **Who sees it:** their own events; managers see team *entries* and generated SOPs; nobody sees who opted in.
-- **How long:** state both retention periods — hot store and archive.
-- **How to stop:** pause, revoke, disconnect — and that none of them needs a reason.
+- **How long:** state both retention periods, the hot store and the archive.
+- **How to stop:** pause, revoke, disconnect, and that none of them needs a reason.
 - **That saying no has no consequence.** If that sentence is not true in the organisation, do not deploy.
 
-## The legal layer — not optional, not technical
+## The legal layer: not optional, and not technical
 
 A toggle records a choice; it does not create a lawful basis. **[D]**
 
 | Jurisdiction | What applies | Usual consequence |
 |---|---|---|
-| EU generally | GDPR Art. 6, Art. 88; DPIA under Art. 35 is very likely required | Consent from an employee is weak (imbalance of power) — counsel often prefers legitimate interest plus a genuinely voluntary opt-in |
-| Germany | BDSG §26; works council co-determination (BetrVG §87(1) no. 6) | Works agreement *before* go-live |
+| EU generally | GDPR Art. 6, Art. 88; DPIA under Art. 35 is very likely required | Consent from an employee is weak, because of the imbalance of power, so counsel often prefers legitimate interest plus a genuinely voluntary opt-in |
+| Germany | BDSG section 26; works council co-determination, BetrVG section 87(1) no. 6 | Works agreement *before* go-live |
 | France | Code du travail L1222-4, L2312-38 | Inform staff individually; consult the CSE |
 | Netherlands | WOR art. 27 | Works-council consent |
-| Poland | Kodeks pracy art. 22²–22³ | Purpose and scope in work regulations; notice two weeks before start |
+| Poland | Kodeks pracy art. 22(2) and 22(3) | Purpose and scope in work regulations; notice two weeks before start |
 | Customers' data | GDPR Art. 5(1)(c) minimisation; Art. 28 if a vendor processes it | Favour `metadata_only` and label redaction; list AI providers as sub-processors |
 
-**[A]** This table is orientation, not advice, and law moves. Every deployment gets its
-own review by someone qualified, and the DPIA names the AI providers that will receive
-event text and screenshots.
+**[A]** This table is orientation, not advice, and law moves. Every deployment gets its own review by someone
+qualified, and the DPIA names the AI providers that will receive event text and screenshots.
 
 ## Managers and the boundary **[P]** principle, **[A]** enforcement
 
-The source stated "aggregate only — never the per-employee record" and then granted
-managers row-level read on the consent table. The principle is right; enforce it in
-the database ([data-model.md](data-model.md)), because a page that only *renders* a
-count does not stop a browser client from selecting the rows.
+The earlier implementation stated "aggregate only, never the per-employee record" and then granted managers
+row-level read on the consent table. The principle is right; enforce it in the database
+([data-model.md](data-model.md)), because a page that only *renders* a count does not stop a browser client
+from selecting the rows.
 
-Suppress the aggregate for small groups and when everyone has opted in — both reveal
-individuals.
+Suppress the aggregate for small groups and when everyone has opted in. Both reveal individuals.
 
 ## Checklist
 
