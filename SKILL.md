@@ -145,3 +145,5 @@ nothing else. **No part of the capture path has met a production browser**, so p
 | What to capture in a shop | Shopify, marketplace, returns, RMA, carrier portal, WMS, categories, rollout | [ecommerce-playbook.md](references/ecommerce-playbook.md) |
 | Proving it | vitest, happy-dom, SQL checks, psql | [testing.md](references/testing.md) |
 | What was fixed, kept, added | provenance, defects, deviations, maturity tags, fix order | [provenance.md](references/provenance.md) |
+
+Part of the [Timerise Skills](https://github.com/timerise-ai/skills) index, which lists the sibling skills.
