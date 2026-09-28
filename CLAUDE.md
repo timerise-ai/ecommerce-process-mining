@@ -33,6 +33,13 @@ That file is the rationale layer: read it before "simplifying" anything.
   `console-surfaces.md`, `ingest.md`, `pii-scrubber.md`, `extension-auth.md`, `extension.md` and
   `screenshots.md` carry the templates; `ai-pipeline.md` and `ecommerce-playbook.md` carry the decisions
   around them; `testing.md` the suites; `provenance.md` the audit.
+- `evals/`: `prompts.md` holds what an operator types after installing, in their words; the first prompt
+  is the agent eval run before every release. Every other file there is one eval run: measured frontmatter
+  that is never edited, then the notes of the person who ran it. Add a prompt rather than rewording one that
+  has results. The procedure is section 10 of the index's STANDARD.md.
+- `.github/workflows/agent-eval.yml`: the caller of the index's reusable eval workflow, run on every
+  published release and on a maintainer's dispatch. It is copied verbatim from the standard and is the same
+  in every skill; do not edit it, and never add a trigger on `push` or `pull_request`.
 
 ## Editing conventions
 
@@ -68,6 +75,9 @@ That file is the rationale layer: read it before "simplifying" anything.
   Figures describing the earlier implementation's deployment do not appear anywhere.
 - **Mark additions as additions.** Anything designed here and never run belongs in the *Added* section of
   `provenance.md`, tagged **[A]** where it appears, or stated as a design in the reference that carries it.
+- **Evals are not skill content.** A new prompt or an eval result is committed as `chore(evals): ...`,
+  never causes a version bump and never rides in a release commit. The frontmatter of a result file is what
+  was measured and is not edited; a failing run stays committed, and the fix is the next release.
 - **Never present the non-negotiables as optional.** The privacy switch that never fails open, the value
   never read, the single-statement claim, the extension-id allowlist, the honest ingest response and the
   aggregate-only enrollment are hard rules in `SKILL.md` and non-negotiables in `README.md`; keep them that

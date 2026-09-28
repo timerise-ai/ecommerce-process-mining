@@ -96,6 +96,8 @@ the skill stays cheap in context until a topic is actually needed.
 | `references/ecommerce-playbook.md` | Which tools to capture in a shop, which processes to mine first, default gap-form categories, the rollout order, how it goes wrong |
 | `references/testing.md` | What is verified and how: the vitest suites, 76 cases, and `verify.sql`, 24 SQL checks, plus what to add in the host |
 | `references/provenance.md` | The engineering ledger: the maturity tags, what the audit changed, what was kept deliberately, what was added here, what is unverified |
+| `evals/` | The prompts an operator types after installing (`prompts.md`) and one file per agent eval: the skill installed into an empty Next.js app, one prompt, no help, then type-checked, built and tested |
+| `.github/workflows/agent-eval.yml` | The caller of the index's eval workflow: runs prompt 1 in Claude Code, Codex CLI and Gemini CLI on every published release, and any prompt on a maintainer's dispatch |
 
 The seam is the table at the top of `references/adaptation.md`, and it bounds everything the host app already
 owns: tenancy, session auth, the capability check, the API-key system, the event store, object storage, the

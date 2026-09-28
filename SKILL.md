@@ -77,7 +77,7 @@ nothing else. **No part of the capture path has met a production browser**, so p
 2. **Exclusions beat the allowlist, and run twice.** The extension first, so no local state is ever created,
    and the server again, so a stale client still leaks nothing. Both import one matcher.
 3. **Consent is per person *per tenant*.** Staff shared across two legal entities consent to each separately;
-   one row per user silently moves consent between them.
+   one row per user would carry consent from one entity to the other.
 4. **Managers never see who opted in.** Aggregate only, suppressed below a group of five, because with three
    employees the count *is* the names.
 5. **A card number and a barcode look alike.** About one EAN, GTIN or tracking number in ten passes Luhn.
@@ -102,15 +102,17 @@ nothing else. **No part of the capture path has met a production browser**, so p
 > **Never read a value you would have to scrub.** Password, card, one-time-code and hidden fields are skipped
 > at the point of capture. The scrubber is a net, not a licence.
 
-> **Never let the redeem be two statements.** One-time codes are claimed with a single `DELETE ... RETURNING`.
+> **Never let the redeem be two statements.** One-time codes are claimed with a single `DELETE ... RETURNING`,
+> so two concurrent redeems cannot both mint a key.
 
-> **Never accept an authorization request from an unknown extension id.** A well-formed id proves nothing, so
-> keep an allowlist.
+> **Never accept an authorization request from an unknown extension id.** A well-formed id proves nothing
+> about who published the extension, so keep an allowlist and re-check it in the authorize action.
 
-> **Never report success to the extension for an event you did not store.** It will delete its only copy.
+> **Never report success to the extension for an event you did not store.** Answer `207` with the indexes to
+> retry, because a `200` makes the extension delete its only copy.
 
-> **Never present designed or added material as proven.** Carry the **[P]**, **[D]** and **[A]** tags into
-> whatever you build from this.
+> **Never show a manager who opted in.** There is no team policy on the consent table, only an aggregate
+> function that suppresses small groups and full enrollment alike.
 
 ## Quick start
 
