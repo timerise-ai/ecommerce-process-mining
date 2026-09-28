@@ -1,0 +1,25 @@
+---
+agent: gemini-cli
+agentVersion: 0.61.0
+model: gemini-3.8-flash
+date: 2026-09-28
+skillVersion: 0.1.3
+promptIndex: 1
+prompt: Build a browser extension our back-office staff install with consent. It
+  records what they do in the shop admin and carrier portals as DOM events,
+  never screenshots, and sends them to our Next.js app on Supabase.
+stack: Supabase
+durationMinutes: 0
+turns: null
+interventions: 0
+checks:
+  typecheck: pass
+  build: pass
+  tests: none
+result: fail
+filesChanged: 0
+linesAdded: 0
+isolated: true
+timedOut: false
+runUrl: https://github.com/timerise-ai/ecommerce-process-mining/actions/runs/36439506430
+---
