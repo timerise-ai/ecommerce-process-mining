@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.3] - 2026-09-28
+
+Wording release. The skill content is unchanged from 0.1.2.
+
+### Changed
+
+- The six hard rules in `SKILL.md` are now the same list, in the same order, as
+  the six non-negotiables in `README.md`: the sixth rule is that a manager never
+  sees who opted in, and each rule states the reason it holds. Carrying the
+  **[P]**, **[D]** and **[A]** tags remains an instruction in the framing
+  paragraph.
+- The file table in `README.md` and the structure in `CLAUDE.md` list `evals/`
+  and the agent eval workflow, and `CLAUDE.md` records that evals are not skill
+  content.
+
 ## [0.1.2] - 2026-09-21
 
 Wording release. The skill content is unchanged from 0.1.1.
