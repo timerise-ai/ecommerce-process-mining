@@ -23,3 +23,8 @@ isolated: true
 timedOut: false
 runUrl: https://github.com/timerise-ai/ecommerce-process-mining/actions/runs/36567519266
 ---
+
+Rubric 8/8, scored from the final summary. The shared modules are copied unchanged and the nine suites
+report 76; its SQL sits in `host.supabase.sql`; ingest answers 503 without credentials and the exchange
+refuses everyone while `PM_ALLOWED_EXTENSION_IDS` is empty; it ships a key-generation script rather than a
+key; and the summary closes with the three handover points.
