@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.6] - 2026-09-29
+
+Wording release, from scoring the prompt-1 agent eval runs against 0.1.5. The
+templates and the suite are unchanged.
+
+### Changed
+
+- `SKILL.md` fourth hard rule, the fourth non-negotiable in `README.md` and
+  `references/extension-auth.md`: the extension-id allowlist is configuration,
+  empty by default, with no id written into code. The key pair that pins the id
+  belongs to the operator: code built from the skill ships the step that makes
+  it and never commits a generated pair.
+- `SKILL.md` quick start and `references/data-model.md`: host code goes in files
+  of its own, the host's SQL included, for example
+  `db/process-mining/host.supabase.sql`, rather than appended to a template.
+- `references/provenance.md` records the additions.
+
 ## [0.1.5] - 2026-09-29
 
 Wording release, from scoring the prompt-1 agent eval runs against 0.1.4. The
