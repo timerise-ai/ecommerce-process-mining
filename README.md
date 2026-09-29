@@ -123,8 +123,9 @@ by the suites in `references/testing.md`:
    after the claim, so two concurrent redeems cannot both mint a key. The SQL checks run a first claim, a
    second claim, a wrong extension id and an expired code.
 4. **An authorization request from an unknown extension id is refused.** A well-formed id proves nothing
-   about who published the extension, so the console keeps an allowlist and re-validates it in the authorize
-   action, where hidden inputs are attacker-controlled.
+   about who published the extension, so the console keeps an allowlist in configuration, empty by default
+   and with no id written into code, and re-validates it in the authorize action, where hidden inputs are
+   attacker-controlled.
 5. **Success is never reported for an event that was not stored.** The emitter returns false rather than
    swallowing a write error, and the route answers `207` with the indexes to retry, because a `200` makes
    the extension delete its only copy. An in-memory store standing in for a missing database is not storage.

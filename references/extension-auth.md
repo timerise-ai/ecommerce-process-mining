@@ -287,6 +287,11 @@ Chrome derives an unpacked extension's id from its path, so every developer mach
 the allowlist never matches. Put the public half of a fixed key pair in `manifest.json` `key`; keep the
 private half in a secrets manager. Regenerating it changes the id and disconnects everyone.
 
+The pair belongs to the operator. Code built from this skill ships the step that makes it (a key-generation
+script is fine) and leaves `key` and the allowlist empty; it never commits a generated pair, and never writes
+a derived id into code as a default. `ALLOWED_EXTENSION_IDS` is read from configuration at request time, and
+an empty list refuses every extension, which is the closed state the first hard rule asks for. **[A]**
+
 ## Tests
 
 ```ts

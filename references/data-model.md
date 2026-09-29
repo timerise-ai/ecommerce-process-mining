@@ -365,6 +365,10 @@ create or replace function pm_current_scope() returns uuid
 
 Read tenant and capability claims from `app_metadata` only. `user_metadata` is writable by the user.
 
+The host's own SQL (its `pm_has_capability`, an API-key table, helper functions for the routes) goes in a file
+of its own, such as `db/process-mining/host.supabase.sql`, applied after this one. Appending to a template
+file makes it differ from the block it was verified against. **[A]**
+
 ## Document store (Firestore) **[A]**, not executed
 
 | Concern | Postgres | Firestore |

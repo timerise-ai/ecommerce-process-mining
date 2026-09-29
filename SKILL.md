@@ -106,7 +106,8 @@ nothing else. **No part of the capture path has met a production browser**, so p
 > so two concurrent redeems cannot both mint a key.
 
 > **Never accept an authorization request from an unknown extension id.** A well-formed id proves nothing
-> about who published the extension, so keep an allowlist and re-check it in the authorize action.
+> about who published the extension, so keep an allowlist in configuration, empty by default and with no id
+> written into code, and re-check it in the authorize action.
 
 > **Never report success to the extension for an event you did not store.** Answer `207` with the indexes to
 > retry, because a `200` makes the extension delete its only copy. Memory is not storage: without a database,
@@ -117,8 +118,8 @@ nothing else. **No part of the capture path has met a production browser**, so p
 
 ## Quick start
 
-Write every `// file:` block as shipped, with [adaptation.md](references/adaptation.md)'s renames the only edits.
-Each odd line has its reason in [provenance.md](references/provenance.md): tighten privacy in wiring, not templates.
+Write every `// file:` block as shipped, with [adaptation.md](references/adaptation.md)'s renames the only edits,
+and put host code in files of its own. Each odd line has its reason in [provenance.md](references/provenance.md).
 
 1. Fill the seam table against the host app: [adaptation.md](references/adaptation.md).
 2. Settle the legal posture and screenshot mode: [consent-and-privacy.md](references/consent-and-privacy.md).
