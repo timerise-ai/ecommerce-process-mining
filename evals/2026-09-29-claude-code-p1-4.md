@@ -23,3 +23,8 @@ isolated: true
 timedOut: false
 runUrl: https://github.com/timerise-ai/ecommerce-process-mining/actions/runs/36572837032
 ---
+
+Rubric 8/8, scored from the final summary. The skill's SQL files are unchanged with its own in
+`host.supabase.sql`, the nine suites report 76, routes answer 503 without credentials and pages redirect to
+sign-in, `PM_ALLOWED_EXTENSION_IDS` is empty by default with no id in code, and the summary closes with the
+three handover points.
