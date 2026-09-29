@@ -5,6 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.4] - 2026-09-29
+
+Wording release, from scoring the prompt-1 agent eval runs against 0.1.3. The
+templates and the suite are unchanged.
+
+### Changed
+
+- `SKILL.md` quick start: every `// file:` block is written as shipped, with the
+  renames in `references/adaptation.md` the only edits, and stricter privacy
+  goes in the host's wiring rather than inside a template.
+- `SKILL.md` quick start and `references/testing.md`: `zod`, `vitest`,
+  `happy-dom` and `@testing-library/react` are installed from the package
+  registry, which is not an external service, and the nine suites run as
+  written under `npx vitest run`, 76 cases; a suite is never ported to another
+  runner.
+- `SKILL.md` quick start and `references/screenshots.md`: with screenshots off,
+  `screenshot.ts` and its suite still ship, because the mode is a setting read
+  by the gate, not a build option.
+- `SKILL.md` quick start ends with the handover: pin the extension id and add it
+  to the allowlist, plan the browser spike, and do not treat the consent toggle
+  as a legal basis. Two quick-start steps merged to stay within the line budget.
+- `references/provenance.md` records these under *Added*.
+
 ## [0.1.3] - 2026-09-28
 
 Wording release. The skill content is unchanged from 0.1.2.
