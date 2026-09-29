@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.5] - 2026-09-29
+
+Wording release, from scoring the prompt-1 agent eval runs against 0.1.4. The
+templates and the suite are unchanged.
+
+### Changed
+
+- `SKILL.md` fifth hard rule, the fifth non-negotiable in `README.md` and
+  `references/ingest.md`: memory is not storage. Without a database, ingest
+  answers an error and the extension keeps its queue; an in-process fallback
+  store answers success for events it loses and reads consent nobody saved.
+- `SKILL.md` quick start, step 9: the pinned extension id, the untested capture
+  path and the legal basis close the final summary, whatever else it says.
+- `SKILL.md` quick-start preamble and step 2 tightened to stay within the line
+  budget; `references/provenance.md` records the additions.
+
 ## [0.1.4] - 2026-09-29
 
 Wording release, from scoring the prompt-1 agent eval runs against 0.1.3. The
