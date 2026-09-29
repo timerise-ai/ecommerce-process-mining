@@ -116,20 +116,27 @@ nothing else. **No part of the capture path has met a production browser**, so p
 
 ## Quick start
 
+Write every `// file:` block to its path as shipped; the renames in [adaptation.md](references/adaptation.md)
+are the only edits. A line that looks too loose or too strict is deliberate, with its reason in
+[provenance.md](references/provenance.md): tighten privacy in the host's wiring, never inside a template.
+
 1. Fill the seam table against the host app: [adaptation.md](references/adaptation.md).
 2. Settle the legal posture and the screenshot mode:
    [consent-and-privacy.md](references/consent-and-privacy.md).
 3. Land the schema: [data-model.md](references/data-model.md).
 4. Build the employee and manager pages: [console-surfaces.md](references/console-surfaces.md). This slice
    ships on its own, with no extension, and is the only **[P]** one.
-5. Add ingest and the scrubber: [ingest.md](references/ingest.md),
-   [pii-scrubber.md](references/pii-scrubber.md).
-6. Add the connect flow: [extension-auth.md](references/extension-auth.md).
-7. Build the extension: [extension.md](references/extension.md),
-   [screenshots.md](references/screenshots.md), with the suites from [testing.md](references/testing.md).
+5. Add ingest, the scrubber and the connect flow: [ingest.md](references/ingest.md),
+   [pii-scrubber.md](references/pii-scrubber.md), [extension-auth.md](references/extension-auth.md).
+6. Build the extension: [extension.md](references/extension.md), [screenshots.md](references/screenshots.md).
+   With screenshots off, `screenshot.ts` and its suite still ship: the mode is a setting, not a deletion.
+7. Run the nine suites from [testing.md](references/testing.md) as written. Install `zod`, and `vitest`,
+   `happy-dom` and `@testing-library/react` as dev dependencies, from the registry, which is not an
+   external service; `npx vitest run` reports 76 cases. Never port a suite to another runner.
 8. Choose the target apps and categories: [ecommerce-playbook.md](references/ecommerce-playbook.md), then the
-   pipeline: [ai-pipeline.md](references/ai-pipeline.md). The ledger behind every odd-looking template is
-   [provenance.md](references/provenance.md).
+   pipeline: [ai-pipeline.md](references/ai-pipeline.md).
+9. Tell the operator three things: pin the extension id and add it to the allowlist, or connect fails; no
+   part of the capture path has run in a browser, so plan the spike; the toggle is no legal basis.
 
 ## Reference directory
 

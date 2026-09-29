@@ -20,7 +20,13 @@ The other suites sit beside their modules: privacy in [pii-scrubber.md](pii-scru
 
 ## Running
 
+Install from the package registry first. The registry is not an external service in the sense of an
+unattended note that says none is reachable, and a suite converted to another runner no longer tests what
+this file verified. Run the nine files as written, including `screenshot.test.ts` when screenshots are off:
+76 cases. Tests of the host's own go in files beside them and are reported separately.
+
 ```bash
+npm i zod && npm i -D vitest happy-dom @testing-library/react
 npx vitest run                    # happy-dom is needed for label.test.ts
 createdb pm_verify && psql -d pm_verify -v ON_ERROR_STOP=1 \
   -f db/process-mining/schema.sql -f db/process-mining/verify.sql

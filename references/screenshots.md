@@ -11,6 +11,9 @@ the minority of events whose DOM read is unreliable, at a few percent of the cos
 | `metadata_only` | bounding box, viewport, hashes, and **no image** | buyer data on screen; **the e-commerce default [A]** |
 | `disabled` | nothing | legal review says so |
 
+The mode is a setting read by the gate, not a build option. With screenshots off, `screenshot.ts` and its
+suite still ship unchanged, so the module and its cases stay verified if the mode is ever changed. **[A]**
+
 **The scrubber never sees pixels.** A screenshot of an order page contains the buyer's name and address in a
 form no regex touches, and stage 1 sends the crop to a third-party vision model. `metadata_only` trades
 accuracy on low-confidence fields for the guarantee that no image leaves the browser. **[D]**

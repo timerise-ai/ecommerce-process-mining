@@ -115,6 +115,11 @@ per-event validation, the idempotency key, the age window, the iframe and endpoi
 purge on consent loss, small-group suppression, automation ranking, role-level SOPs, entry editing, and every
 test.
 
+Found by the agent evals and added to the instructions rather than the templates: every template is
+written as shipped, with privacy tightened in the host's wiring; the suites are installed from the registry
+and run as written; `screenshot.ts` and its suite ship even with screenshots off; and the handover names the
+pinned extension id, the unproven capture path and the legal basis.
+
 Removed from the design: request-payload capture, `chrome.debugger` response bodies, and `user_email` on the
 exchange response.
 
