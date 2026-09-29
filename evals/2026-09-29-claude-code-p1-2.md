@@ -23,3 +23,8 @@ isolated: true
 timedOut: false
 runUrl: https://github.com/timerise-ai/ecommerce-process-mining/actions/runs/36562840118
 ---
+
+Rubric 8/8, scored from the final summary. The shared modules are "as shipped", the nine suites report 76
+cases, ingest answers 503 without credentials rather than using an in-memory stand-in, the allowlist is
+`PM_ALLOWED_EXTENSION_IDS`, and the summary closes with the pinned id, the browser trial and the legal basis.
+Its host SQL (an API-key table) sits in a file of its own. The stricter capture it lists is host wiring.
