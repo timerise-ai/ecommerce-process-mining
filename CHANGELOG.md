@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.7] - 2026-09-29
+
+Wording release, from scoring the prompt-1 agent eval runs against 0.1.6. The
+templates and the suite are unchanged.
+
+### Changed
+
+- `SKILL.md` quick start, step 1, and `references/adaptation.md`: no session is
+  signed out, in every environment. A request without a session or a tenant is
+  a `401` or a redirect to sign-in, never a development user, a sandbox tenant
+  or a first-tenant default.
+- `SKILL.md` framing paragraph tightened to stay within the line budget;
+  `references/provenance.md` records the addition.
+
 ## [0.1.6] - 2026-09-29
 
 Wording release, from scoring the prompt-1 agent eval runs against 0.1.5. The
