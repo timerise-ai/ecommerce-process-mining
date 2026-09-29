@@ -109,20 +109,19 @@ nothing else. **No part of the capture path has met a production browser**, so p
 > about who published the extension, so keep an allowlist and re-check it in the authorize action.
 
 > **Never report success to the extension for an event you did not store.** Answer `207` with the indexes to
-> retry, because a `200` makes the extension delete its only copy.
+> retry, because a `200` makes the extension delete its only copy. Memory is not storage: without a database,
+> ingest answers an error, never an in-process fallback store.
 
 > **Never show a manager who opted in.** There is no team policy on the consent table, only an aggregate
 > function that suppresses small groups and full enrollment alike.
 
 ## Quick start
 
-Write every `// file:` block to its path as shipped; the renames in [adaptation.md](references/adaptation.md)
-are the only edits. A line that looks too loose or too strict is deliberate, with its reason in
-[provenance.md](references/provenance.md): tighten privacy in the host's wiring, never inside a template.
+Write every `// file:` block as shipped, with [adaptation.md](references/adaptation.md)'s renames the only edits.
+Each odd line has its reason in [provenance.md](references/provenance.md): tighten privacy in wiring, not templates.
 
 1. Fill the seam table against the host app: [adaptation.md](references/adaptation.md).
-2. Settle the legal posture and the screenshot mode:
-   [consent-and-privacy.md](references/consent-and-privacy.md).
+2. Settle the legal posture and screenshot mode: [consent-and-privacy.md](references/consent-and-privacy.md).
 3. Land the schema: [data-model.md](references/data-model.md).
 4. Build the employee and manager pages: [console-surfaces.md](references/console-surfaces.md). This slice
    ships on its own, with no extension, and is the only **[P]** one.
@@ -135,8 +134,9 @@ are the only edits. A line that looks too loose or too strict is deliberate, wit
    external service; `npx vitest run` reports 76 cases. Never port a suite to another runner.
 8. Choose the target apps and categories: [ecommerce-playbook.md](references/ecommerce-playbook.md), then the
    pipeline: [ai-pipeline.md](references/ai-pipeline.md).
-9. Tell the operator three things: pin the extension id and add it to the allowlist, or connect fails; no
-   part of the capture path has run in a browser, so plan the spike; the toggle is no legal basis.
+9. End the final summary with these three, whatever else it says: pin the extension id and add it to the
+   allowlist, or connect fails; nothing in the capture path has run in a browser, so plan the spike; and the
+   consent toggle is not a legal basis, so the DPIA and any works-council consultation come before go-live.
 
 ## Reference directory
 

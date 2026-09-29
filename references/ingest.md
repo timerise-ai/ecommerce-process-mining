@@ -261,6 +261,12 @@ tenant. A person in two tenants has two keys and two consents. **[A]**
 by design, which is correct for audit bookkeeping and fatal here: a `200` makes the extension delete its only
 copy. Wrap the host's emitter so failure is visible. **[A]**
 
+**No fallback store.** When the database is not configured or not reachable, the route answers an error and
+the extension keeps its queue. An in-process array or map that stands in for the database answers `200` for
+events that vanish on the next deploy or cold start, and it reads consent that was never saved, so it breaks
+both the honest response and the consent re-read. Read credentials at request time so the build needs none,
+and let a missing one fail the request. **[A]**
+
 ```ts
 // file: lib/process-mining/ingest-route.ts (the emit seam)
 // Host seam. `hostEmit` is whatever writes to the host's event log.

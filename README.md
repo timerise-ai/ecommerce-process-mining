@@ -127,7 +127,7 @@ by the suites in `references/testing.md`:
    action, where hidden inputs are attacker-controlled.
 5. **Success is never reported for an event that was not stored.** The emitter returns false rather than
    swallowing a write error, and the route answers `207` with the indexes to retry, because a `200` makes
-   the extension delete its only copy.
+   the extension delete its only copy. An in-memory store standing in for a missing database is not storage.
 6. **Who opted in is not a manager's business.** There is no team policy on the consent table, only an
    aggregate function that suppresses small groups and full enrollment alike. The SQL checks assert that a
    manager role reads zero consent rows, whatever the page renders.

@@ -118,7 +118,8 @@ test.
 Found by the agent evals and added to the instructions rather than the templates: every template is
 written as shipped, with privacy tightened in the host's wiring; the suites are installed from the registry
 and run as written; `screenshot.ts` and its suite ship even with screenshots off; and the handover names the
-pinned extension id, the unproven capture path and the legal basis.
+pinned extension id, the unproven capture path and the legal basis, at the end of the final summary; and
+ingest never falls back to an in-memory store when the database is missing.
 
 Removed from the design: request-payload capture, `chrome.debugger` response bodies, and `user_email` on the
 exchange response.
