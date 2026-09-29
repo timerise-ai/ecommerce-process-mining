@@ -31,10 +31,9 @@ pipeline second.
 
 Written by the engineer who has shipped this module. Every section in every reference carries a maturity tag:
 **[P]** ran in the earlier implementation, **[D]** was specified in its design notes and never built there,
-**[A]** was designed here and is held by the 76 unit tests and 24 SQL checks shipped with this skill and by
-nothing else. **No part of the capture path has met a production browser**, so plan the spike in
-[extension.md](references/extension.md). The tags and the audit record are in
-[provenance.md](references/provenance.md); keep the tags in anything written from this skill.
+**[A]** was designed here and is held only by the 76 unit tests and 24 SQL checks shipped with this skill.
+**No part of the capture path has met a production browser**; plan the spike in [extension.md](references/extension.md).
+Keep the tags in anything written from this skill; [provenance.md](references/provenance.md) holds the audit.
 
 ## When to use
 
@@ -121,7 +120,8 @@ nothing else. **No part of the capture path has met a production browser**, so p
 Write every `// file:` block as shipped, with [adaptation.md](references/adaptation.md)'s renames the only edits,
 and put host code in files of its own. Each odd line has its reason in [provenance.md](references/provenance.md).
 
-1. Fill the seam table against the host app: [adaptation.md](references/adaptation.md).
+1. Fill the seam table against the host app: [adaptation.md](references/adaptation.md). No session means
+   signed out, in every environment: never a fallback user or tenant, not even in development.
 2. Settle the legal posture and screenshot mode: [consent-and-privacy.md](references/consent-and-privacy.md).
 3. Land the schema: [data-model.md](references/data-model.md).
 4. Build the employee and manager pages: [console-surfaces.md](references/console-surfaces.md). This slice

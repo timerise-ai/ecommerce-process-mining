@@ -121,7 +121,8 @@ and run as written; `screenshot.ts` and its suite ship even with screenshots off
 pinned extension id, the unproven capture path and the legal basis, at the end of the final summary; and
 ingest never falls back to an in-memory store when the database is missing; host code, the host's SQL
 included, lives in files of its own; and the extension-id allowlist is empty configuration, with no generated
-key pair committed and no derived id written into code.
+key pair committed and no derived id written into code; and a request with no session is signed out in
+every environment, never given a development user or tenant.
 
 Removed from the design: request-payload capture, `chrome.debugger` response bodies, and `user_email` on the
 exchange response.

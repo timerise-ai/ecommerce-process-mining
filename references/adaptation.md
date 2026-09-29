@@ -8,7 +8,7 @@ seam implicitly.
 | Seam | The skill ships | The host supplies | A worked example |
 |---|---|---|---|
 | **Domain entities** | Canonical names (below) | Its vocabulary | "routine", "my routine", "process mining" |
-| **Tenant scope** | `scope_id`, always server-derived | org / workspace / company / legal entity | `organization_id` from a JWT claim |
+| **Tenant scope** | `scope_id`, always server-derived, never a default | org / workspace / company / legal entity | `organization_id` from a JWT claim |
 | **Session auth** | `pm_current_user()` in SQL; "who is signed in" in pages | Supabase, Clerk, NextAuth, custom | Supabase SSR + a request proxy |
 | **Capability check** | Three capability strings | Its RBAC, or a role check | Data-driven RBAC table + `requireCapability()` |
 | **API keys** | `IngestHost.authenticate`, `ExchangeDeps.mintKey` | Its key table: hashed secret, scopes, owner, tenant, revoke | An `api_keys` table with tiered prefixes |
@@ -21,6 +21,12 @@ seam implicitly.
 | **Strings** | Keys | Its i18n files, every locale | next-intl, which the module itself never used: see [provenance.md](provenance.md) |
 | **Validation** | zod schemas (compile under zod 3 and 4) | zod, or a port to valibot/yup | zod |
 | **Tests** | 76 vitest cases, 24 SQL checks | Its runner | none |
+
+**No session is signed out, in every environment.** A request without a session, or with a session that
+carries no tenant, is a `401` or a redirect to sign-in. Never substitute a development user, a sandbox
+tenant or a first-tenant default: the same code path runs in production the day an environment variable is
+missing, and every consent, entry and key it writes lands in a tenant nobody chose. Local development signs
+in like production does. **[A]**
 
 ## Capabilities
 
